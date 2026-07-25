@@ -25,7 +25,8 @@
   },
   "dependencies": {
     "@agentix-e/log-parser-core": "workspace:*",
-    "@agentix-e/log-parser-node": "workspace:^"
+    "@agentix-e/log-parser-node": "workspace:^",
+    "@opentelemetry/api": "1"
   },
   "peerDependencies": {
     "fastify": "^5.0.0",

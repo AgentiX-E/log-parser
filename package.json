@@ -14,7 +14,10 @@
     "format": "prettier --write 'packages/*/src/**/*.ts' 'packages/*/tests/**/*.ts'",
     "format:check": "prettier --check 'packages/*/src/**/*.ts' 'packages/*/tests/**/*.ts'",
     "ci": "pnpm build && pnpm typecheck && pnpm lint && pnpm format:check && pnpm test:coverage",
-    "clean": "pnpm -r run clean"
+    "clean": "pnpm -r run clean",
+    "benchmark:perf": "npx vitest run packages/log-parser-core/tests/benchmark/perf.test.ts --root packages/log-parser-core",
+    "benchmark:loghub": "npx vitest run packages/log-parser-core/tests/benchmark/loghub.test.ts --root packages/log-parser-core",
+    "benchmark": "npx vitest run packages/log-parser-core/tests/benchmark/perf.test.ts --root packages/log-parser-core && npx vitest run packages/log-parser-core/tests/benchmark/loghub.test.ts --root packages/log-parser-core"
   },
   "engines": {
     "node": ">=22.0.0",
@@ -29,6 +32,7 @@
     "eslint": "^9.0.0",
     "prettier": "^3.0.0",
     "tsup": "^8.0.0",
+    "tsx": "^4.0.0",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.65.0",
     "vitest": "^3.0.0"
