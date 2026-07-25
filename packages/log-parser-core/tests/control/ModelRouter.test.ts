@@ -68,7 +68,9 @@ describe('ModelRouter', () => {
         'SIGSEGV received at address 0x0 thread=main loop iteration=42',
       ];
       for (let i = 0; i < 10; i++) {
-        complexLogs.push(`[FATAL] node-${i} ${uniqueBodies[i % 10]} extra-context-${i} trace=abc${i}`);
+        complexLogs.push(
+          `[FATAL] node-${i} ${uniqueBodies[i % 10]} extra-context-${i} trace=abc${i}`,
+        );
       }
 
       const result = router.select(complexLogs);
@@ -86,11 +88,7 @@ describe('ModelRouter', () => {
 
     it('returns low score for simple identical logs', () => {
       const router = new ModelRouter(createMockProvider('local'));
-      const score = router.assessComplexity([
-        'User logged in',
-        'User logged in',
-        'User logged in',
-      ]);
+      const score = router.assessComplexity(['User logged in', 'User logged in', 'User logged in']);
       expect(score).toBeLessThan(0.3);
     });
 
@@ -107,11 +105,7 @@ describe('ModelRouter', () => {
 
     it('returns score between 0 and 1', () => {
       const router = new ModelRouter(createMockProvider('local'));
-      for (const testCase of [
-        ['a'],
-        ['a', 'b', 'c'],
-        ['very long message ' + 'x'.repeat(500)],
-      ]) {
+      for (const testCase of [['a'], ['a', 'b', 'c'], ['very long message ' + 'x'.repeat(500)]]) {
         const score = router.assessComplexity(testCase);
         expect(score).toBeGreaterThanOrEqual(0);
         expect(score).toBeLessThanOrEqual(1);

@@ -9,6 +9,8 @@ import { DppSampler } from '../control/DppSampler.js';
 import { MissAccumulator } from '../control/MissAccumulator.js';
 import { SelfReflectionLoop } from '../control/SelfReflectionLoop.js';
 import { AdaptiveTemplateCache } from '../cache/AdaptiveTemplateCache.js';
+import { GranularityCalibrator } from '../granularity/GranularityCalibrator.js';
+import type { GranularityConfig } from '../granularity/GranularityDistance.js';
 import type { LogTemplate, LogParseResult, PipelineLayerConfig, PipelineStats } from './types.js';
 import { defaultPipelineConfig } from './types.js';
 
@@ -81,6 +83,9 @@ export class LogParserPipeline {
   private cacheHits = 0;
   private llmCalls = 0;
   private llmTokensConsumed = 0;
+
+  // Granularity calibration (HITL)
+  private readonly calibrator = new GranularityCalibrator();
 
   private nextLogId = 0;
 
@@ -258,6 +263,27 @@ export class LogParserPipeline {
   /** The active pipeline configuration. */
   get layerConfig(): PipelineLayerConfig {
     return this.config;
+  }
+
+  /**
+   * Calibrate granularity preference using Human-in-the-Loop samples.
+   *
+   * After collecting 32 samples, the calibrator automatically learns
+   * whether the user prefers coarse, balanced, or fine variable boundaries.
+   *
+   * @param samples - Array of { log, expectedTemplate } pairs.
+   */
+  calibrateGranularity(
+    samples: readonly { readonly log: string; readonly expectedTemplate: string }[],
+  ): void {
+    for (const s of samples) {
+      this.calibrator.addSample(s.log, s.expectedTemplate);
+    }
+  }
+
+  /** The current granularity calibration config, if calibrated. */
+  get granularityConfig(): GranularityConfig | null {
+    return this.calibrator.config;
   }
 
   /** Runtime statistics. */

@@ -68,3 +68,16 @@ export { MissAccumulator } from './control/MissAccumulator.js';
 export { SelfReflectionLoop } from './control/SelfReflectionLoop.js';
 export { PromptBuilder } from './control/PromptBuilder.js';
 export { ModelRouter } from './control/ModelRouter.js';
+
+// ── Granularity ──
+export { GranularityDistance, GranularityCalibrator } from './granularity/index.js';
+export type { GranularityPreference, GranularityConfig } from './granularity/index.js';
+
+// ── Evaluation ──
+export { Evaluator, BenchmarkRunner } from './evaluation/index.js';
+export type {
+  ParsedLogEntry,
+  GroundTruthEntry,
+  ParsingEvaluationResult,
+  BenchmarkDataset,
+} from './evaluation/index.js';

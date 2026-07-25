@@ -42,8 +42,7 @@ export class ModelRouter {
   assessComplexity(logSamples: readonly string[]): number {
     if (logSamples.length === 0) return 0;
 
-    const avgLength =
-      logSamples.reduce((sum, log) => sum + log.length, 0) / logSamples.length;
+    const avgLength = logSamples.reduce((sum, log) => sum + log.length, 0) / logSamples.length;
 
     const allTokens = logSamples.flatMap((log) => log.split(/\s+/));
     const uniqueTokens = new Set(allTokens).size;

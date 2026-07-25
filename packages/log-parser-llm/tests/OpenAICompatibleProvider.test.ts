@@ -8,7 +8,7 @@ vi.mock('ai', () => ({
 
 // Mock @ai-sdk/openai-compatible
 vi.mock('@ai-sdk/openai-compatible', () => ({
-  createOpenAICompatible: vi.fn((_config: unknown) => ({
+  createOpenAICompatible: vi.fn(() => ({
     chatModel: vi.fn((_modelId: string) => ({
       specificationVersion: 'v1',
       provider: 'mock',
@@ -205,7 +205,11 @@ describe('OpenAICompatibleProvider', () => {
             { position: 1, value: '192.168.1.1', category: 'IP' as const },
             { position: 2, value: '42', category: 'NUM' as const },
             { position: 3, value: '/var/log', category: 'PATH' as const },
-            { position: 4, value: '550e8400-e29b-41d4-a716-446655440000', category: 'UUID' as const },
+            {
+              position: 4,
+              value: '550e8400-e29b-41d4-a716-446655440000',
+              category: 'UUID' as const,
+            },
             { position: 5, value: 'a@b.com', category: 'EMAIL' as const },
             { position: 6, value: '2024-01-15T10:30:00Z', category: 'TIMESTAMP' as const },
             { position: 7, value: 'api.example.com', category: 'HOSTNAME' as const },

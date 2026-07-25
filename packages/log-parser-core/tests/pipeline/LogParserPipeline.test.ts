@@ -5,17 +5,15 @@ import type { ILLMProvider, LlmTemplateResult } from '../../src/llm/ILLMProvider
 function createMockLLMProvider(): ILLMProvider {
   return {
     modelId: 'mock-model',
-    extractTemplate: vi.fn().mockImplementation(
-      async (): Promise<LlmTemplateResult> => ({
-        template: 'User <*> logged in from <IP>',
-        variables: [
-          { position: 1, value: 'test', category: 'GENERIC' as const },
-          { position: 4, value: '192.168.1.1', category: 'IP' as const },
-        ],
-        confidence: 0.95,
-        usage: { promptTokens: 50, completionTokens: 30 },
-      }),
-    ),
+    extractTemplate: vi.fn().mockImplementation(async (): Promise<LlmTemplateResult> => ({
+      template: 'User <*> logged in from <IP>',
+      variables: [
+        { position: 1, value: 'test', category: 'GENERIC' as const },
+        { position: 4, value: '192.168.1.1', category: 'IP' as const },
+      ],
+      confidence: 0.95,
+      usage: { promptTokens: 50, completionTokens: 30 },
+    })),
   };
 }
 
