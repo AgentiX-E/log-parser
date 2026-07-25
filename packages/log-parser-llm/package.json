@@ -1,0 +1,34 @@
+{
+  "name": "@agentix-e/log-parser-llm",
+  "version": "0.1.0",
+  "description": "Convenient OpenAI-compatible LLM provider for the log-parser framework. Implements ILLMProvider using the Vercel AI SDK.",
+  "type": "module",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --external all --format esm --dts",
+    "dev": "tsup src/index.ts --external all --format esm --dts --watch",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@agentix-e/log-parser-core": "workspace:*"
+  },
+  "peerDependencies": {
+    "ai": "^4.0.0",
+    "@ai-sdk/openai-compatible": "^1.0.0",
+    "zod": "^3.0.0"
+  }
+}
