@@ -5,9 +5,9 @@ describe('StructuredLogExtractor', () => {
   const extractor = new StructuredLogExtractor();
 
   it('extracts message field from JSON', () => {
-    expect(
-      extractor.extract('{"timestamp":"2024-01-01","message":"user logged in"}'),
-    ).toBe('user logged in');
+    expect(extractor.extract('{"timestamp":"2024-01-01","message":"user logged in"}')).toBe(
+      'user logged in',
+    );
   });
 
   it('extracts msg field from JSON', () => {
@@ -31,9 +31,9 @@ describe('StructuredLogExtractor', () => {
   });
 
   it('returns original when no content field in JSON', () => {
-    expect(
-      extractor.extract('{"timestamp":"2024-01-01","level":"error"}'),
-    ).toBe('{"timestamp":"2024-01-01","level":"error"}');
+    expect(extractor.extract('{"timestamp":"2024-01-01","level":"error"}')).toBe(
+      '{"timestamp":"2024-01-01","level":"error"}',
+    );
   });
 
   it('returns original for JSON with non-string content field', () => {

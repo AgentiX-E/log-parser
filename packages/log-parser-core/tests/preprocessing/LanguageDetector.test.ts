@@ -30,8 +30,8 @@ describe('LanguageDetector', () => {
   });
 
   it('returns en for long English sentence', () => {
-    expect(
-      detector.detect('User alice logged in successfully from 192.168.1.1 at 10:30:00'),
-    ).toBe('en');
+    expect(detector.detect('User alice logged in successfully from 192.168.1.1 at 10:30:00')).toBe(
+      'en',
+    );
   });
 });

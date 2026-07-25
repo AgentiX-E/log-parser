@@ -28,7 +28,11 @@ export { LogParserPipeline, type LogParserPipelineConfig } from './pipeline/LogP
 export { DrainDataPlane } from './data/DrainDataPlane.js';
 
 // ── Classifier ──
-export { VariableTypeClassifier, type ClassificationResult, type VariableType } from './classifier/VariableTypeClassifier.js';
+export {
+  VariableTypeClassifier,
+  type ClassificationResult,
+  type VariableType,
+} from './classifier/VariableTypeClassifier.js';
 
 // ── Preprocessing ──
 export { MultiLangTokenizer } from './preprocessing/MultiLangTokenizer.js';

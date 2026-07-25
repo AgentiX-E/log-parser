@@ -10,8 +10,7 @@ describe('AutoDetectAdapter', () => {
   });
 
   it('detects apache format', () => {
-    const line =
-      '192.168.1.1 - - [15/Jan/2024:10:30:00 +0000] "GET / HTTP/1.1" 200 1234';
+    const line = '192.168.1.1 - - [15/Jan/2024:10:30:00 +0000] "GET / HTTP/1.1" 200 1234';
     expect(adapter.extractContent(line)).toBe('GET / HTTP/1.1 200 1234');
   });
 
@@ -34,8 +33,7 @@ describe('AutoDetectAdapter', () => {
   });
 
   it('extracts metadata for apache', () => {
-    const line =
-      '192.168.1.1 - - [15/Jan/2024:10:30:00 +0000] "GET / HTTP/1.1" 200 1234';
+    const line = '192.168.1.1 - - [15/Jan/2024:10:30:00 +0000] "GET / HTTP/1.1" 200 1234';
     const meta = adapter.extractMetadata(line);
     expect(meta.host).toBe('192.168.1.1');
   });

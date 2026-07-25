@@ -13,8 +13,7 @@ describe('JsonLogAdapter', () => {
   });
 
   it('extracts metadata fields', () => {
-    const line =
-      '{"timestamp":"2024-01-01","level":"error","message":"fail","host":"srv1"}';
+    const line = '{"timestamp":"2024-01-01","level":"error","message":"fail","host":"srv1"}';
     const meta = adapter.extractMetadata(line);
     expect(meta.timestamp).toBe('2024-01-01');
     expect(meta.level).toBe('error');
@@ -42,9 +41,7 @@ describe('JsonLogAdapter', () => {
   });
 
   it('extracts content from JSON with content field', () => {
-    expect(adapter.extractContent('{"content":"disk quota exceeded"}')).toBe(
-      'disk quota exceeded',
-    );
+    expect(adapter.extractContent('{"content":"disk quota exceeded"}')).toBe('disk quota exceeded');
   });
 
   it('returns original for invalid JSON', () => {
@@ -56,8 +53,8 @@ describe('JsonLogAdapter', () => {
   });
 
   it('returns original for JSON without string content (object value)', () => {
-    expect(
-      adapter.extractContent('{"message":{"nested":"value"}}'),
-    ).toBe('{"message":{"nested":"value"}}');
+    expect(adapter.extractContent('{"message":{"nested":"value"}}')).toBe(
+      '{"message":{"nested":"value"}}',
+    );
   });
 });

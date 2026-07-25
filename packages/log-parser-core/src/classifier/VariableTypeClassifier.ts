@@ -1,15 +1,6 @@
 /** Variable types that can be identified heuristically (zero deps, zero LLM). */
 export type VariableType =
-  | 'IP'
-  | 'NUM'
-  | 'HEX'
-  | 'UUID'
-  | 'EMAIL'
-  | 'TIMESTAMP'
-  | 'PATH'
-  | 'URL'
-  | 'HOSTNAME'
-  | 'GENERIC';
+  'IP' | 'NUM' | 'HEX' | 'UUID' | 'EMAIL' | 'TIMESTAMP' | 'PATH' | 'URL' | 'HOSTNAME' | 'GENERIC';
 
 /** Classification result containing the type and optional metadata. */
 export interface ClassificationResult {

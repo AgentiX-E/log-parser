@@ -36,8 +36,7 @@ export class AutoDetectAdapter implements LogInputAdapter {
     if (!trimmed) return this.createRawAdapter();
 
     if (trimmed.startsWith('{')) return this.json;
-    if (/^(?:<\d+>)?[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}/.test(trimmed))
-      return this.syslog;
+    if (/^(?:<\d+>)?[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}/.test(trimmed)) return this.syslog;
     if (/^\S+\s+\S+\s+\S+\s+\[/.test(trimmed)) return this.apache;
 
     return this.createRawAdapter();

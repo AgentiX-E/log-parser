@@ -5,12 +5,7 @@ describe('FallbackTokenizer', () => {
   const tokenizer = new FallbackTokenizer();
 
   it('splits on whitespace', () => {
-    expect(tokenizer.tokenize('User alice logged in')).toEqual([
-      'User',
-      'alice',
-      'logged',
-      'in',
-    ]);
+    expect(tokenizer.tokenize('User alice logged in')).toEqual(['User', 'alice', 'logged', 'in']);
   });
 
   it('filters empty tokens', () => {

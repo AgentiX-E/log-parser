@@ -16,14 +16,7 @@
 
 /** Variable category types recognized in log messages. */
 export type VariableCategory =
-  | 'IP'
-  | 'NUM'
-  | 'PATH'
-  | 'UUID'
-  | 'EMAIL'
-  | 'TIMESTAMP'
-  | 'HOSTNAME'
-  | 'GENERIC';
+  'IP' | 'NUM' | 'PATH' | 'UUID' | 'EMAIL' | 'TIMESTAMP' | 'HOSTNAME' | 'GENERIC';
 
 /** A single variable annotation extracted by the LLM. */
 export interface VariableAnnotation {

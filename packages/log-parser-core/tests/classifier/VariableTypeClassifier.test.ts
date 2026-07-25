@@ -14,21 +14,15 @@ describe('VariableTypeClassifier', () => {
   });
 
   describe('Numbers', () => {
-    it.each(['42', '-123', '3.14', '0', '-0.5', '1000000'])(
-      'classifies %s as NUM',
-      (token) => {
-        expect(classifier.classify(token).type).toBe('NUM');
-      },
-    );
+    it.each(['42', '-123', '3.14', '0', '-0.5', '1000000'])('classifies %s as NUM', (token) => {
+      expect(classifier.classify(token).type).toBe('NUM');
+    });
   });
 
   describe('Hex values', () => {
-    it.each(['0xdeadbeef', '0xFF', '0x0', '0x123abc'])(
-      'classifies %s as HEX',
-      (token) => {
-        expect(classifier.classify(token).type).toBe('HEX');
-      },
-    );
+    it.each(['0xdeadbeef', '0xFF', '0x0', '0x123abc'])('classifies %s as HEX', (token) => {
+      expect(classifier.classify(token).type).toBe('HEX');
+    });
   });
 
   describe('UUIDs', () => {
