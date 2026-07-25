@@ -27,6 +27,13 @@ export interface ExtractedParam {
   readonly maskName: string;
 }
 
+/** A parsed log template stored in the cache. */
+export interface LogTemplate {
+  readonly id: string;
+  readonly template: string;
+  readonly tokens: readonly string[];
+}
+
 /** Source of a parsed log result. */
 export type ParseSource = 'drain-strict' | 'drain-loose' | 'cache-hit' | 'llm-extracted';
 

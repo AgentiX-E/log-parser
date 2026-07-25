@@ -14,6 +14,7 @@ export type {
   DrainResult,
   DrainMatch,
   ExtractedParam,
+  LogTemplate,
   LogParseResult,
   ParseSource,
   PipelineLayerConfig,
@@ -52,3 +53,17 @@ export { SyslogAdapter } from './preprocessing/adapters/SyslogAdapter.js';
 export { ApacheAdapter } from './preprocessing/adapters/ApacheAdapter.js';
 export { JsonLogAdapter } from './preprocessing/adapters/JsonLogAdapter.js';
 export { AutoDetectAdapter } from './preprocessing/adapters/AutoDetectAdapter.js';
+
+// ── Embedding ──
+export { TfIdfVectorizer } from './embedding/TfIdfVectorizer.js';
+
+// ── Cache ──
+export { AdaptiveTemplateCache } from './cache/AdaptiveTemplateCache.js';
+
+// ── Control plane ──
+export { PartitioningEngine } from './control/PartitioningEngine.js';
+export type { MissEvent } from './control/PartitioningEngine.js';
+export { DppSampler } from './control/DppSampler.js';
+export { MissAccumulator } from './control/MissAccumulator.js';
+export { SelfReflectionLoop } from './control/SelfReflectionLoop.js';
+export { PromptBuilder } from './control/PromptBuilder.js';
