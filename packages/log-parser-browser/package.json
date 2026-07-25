@@ -24,6 +24,11 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@agentix-e/drain-ts": "^1.0.1",
     "@agentix-e/log-parser-core": "workspace:*"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^29.1.1"
   }
 }

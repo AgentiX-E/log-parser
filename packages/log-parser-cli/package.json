@@ -24,7 +24,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@agentix-e/log-parser-core": "workspace:*"
+    "@agentix-e/log-parser-core": "workspace:*",
+    "@agentix-e/log-parser-node": "workspace:^"
   },
   "peerDependencies": {
     "commander": "^13.0.0"

@@ -1,1 +1,1 @@
-export {};
+export { WebLLMProvider } from './WebLLMProvider.js';

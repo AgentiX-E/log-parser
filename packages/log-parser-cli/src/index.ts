@@ -1,1 +1,1 @@
-export {};
+export { createCLI } from './cli.js';
