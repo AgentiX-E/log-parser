@@ -26,7 +26,7 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
-  "peerDependencies": {
+  "dependencies": {
     "@agentix-e/drain-ts": "^1.0.1"
   },
   "optionalDependencies": {

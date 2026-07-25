@@ -4,13 +4,18 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@agentix-e/drain-ts':
+    hash: 6b19d262fa2104aff4551adbee6dfb269ef0fd8ebba704cd97f1625051f32258
+    path: patches/@agentix-e__drain-ts.patch
+
 importers:
 
   .:
     devDependencies:
       '@eslint/js':
-        specifier: ^10.0.1
-        version: 10.0.1(eslint@9.39.5)
+        specifier: ^9.39.5
+        version: 9.39.5
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.1
@@ -55,7 +60,7 @@ importers:
     dependencies:
       '@agentix-e/drain-ts':
         specifier: ^1.0.1
-        version: 1.0.1
+        version: 1.0.1(patch_hash=6b19d262fa2104aff4551adbee6dfb269ef0fd8ebba704cd97f1625051f32258)
     optionalDependencies:
       franc-min:
         specifier: ^6.0.0
@@ -522,15 +527,6 @@ packages:
   '@eslint/eslintrc@3.3.6':
     resolution: {integrity: sha512-l2Ul9PrHsPCKcEY/ac7VgFj9D80C7S68sOKc618SyHDPK36s1XcFebXY0iTzUVn4Yq+YbwvSnDmCz9yxjX+QrA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
-
-  '@eslint/js@10.0.1':
-    resolution: {integrity: sha512-zeR9k5pd4gxjZ0abRoIaxdc7I3nDktoXZk2qOv9gCNWx3mVwEn32VRhyLaRsDiJjTs0xq/T8mfPtyuXu7GWBcA==}
-    engines: {node: ^20.19.0 || ^22.13.0 || >=24}
-    peerDependencies:
-      eslint: ^10.0.0
-    peerDependenciesMeta:
-      eslint:
-        optional: true
 
   '@eslint/js@9.39.5':
     resolution: {integrity: sha512-QywQuszQh77pIXCsq998c8hbhSTI/azTty1Z6N53dmAudKHhy573j3yvRLsX2BSp8YpLtoCEG8E9DJe+8zUh4A==}
@@ -2265,7 +2261,7 @@ packages:
 
 snapshots:
 
-  '@agentix-e/drain-ts@1.0.1': {}
+  '@agentix-e/drain-ts@1.0.1(patch_hash=6b19d262fa2104aff4551adbee6dfb269ef0fd8ebba704cd97f1625051f32258)': {}
 
   '@ai-sdk/openai-compatible@1.0.46(zod@3.25.76)':
     dependencies:
@@ -2524,10 +2520,6 @@ snapshots:
       strip-json-comments: 3.1.1
     transitivePeerDependencies:
       - supports-color
-
-  '@eslint/js@10.0.1(eslint@9.39.5)':
-    optionalDependencies:
-      eslint: 9.39.5
 
   '@eslint/js@9.39.5': {}
 
