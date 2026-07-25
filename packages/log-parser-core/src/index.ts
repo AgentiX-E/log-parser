@@ -74,10 +74,11 @@ export { GranularityDistance, GranularityCalibrator } from './granularity/index.
 export type { GranularityPreference, GranularityConfig } from './granularity/index.js';
 
 // ── Evaluation ──
-export { Evaluator, BenchmarkRunner } from './evaluation/index.js';
+export { Evaluator, BenchmarkRunner, DatasetLoader, DATASET_NAMES } from './evaluation/index.js';
 export type {
   ParsedLogEntry,
   GroundTruthEntry,
   ParsingEvaluationResult,
   BenchmarkDataset,
+  DatasetName,
 } from './evaluation/index.js';
