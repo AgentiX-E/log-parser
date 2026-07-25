@@ -23,9 +23,9 @@ export class SyslogAdapter implements LogInputAdapter {
     const match = SyslogAdapter.SYSLOG_REGEX.exec(rawLine);
     if (!match) return {};
     return {
-      timestamp: match[1] ?? '',
-      hostname: match[2] ?? '',
-      application: match[3] ?? '',
+      timestamp: match[1]!,
+      hostname: match[2]!,
+      application: match[3]!,
       pid: match[4] ?? '',
     };
   }

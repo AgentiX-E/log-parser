@@ -89,6 +89,10 @@ describe('VariableTypeClassifier', () => {
         expect(classifier.classify(token).type).toBe('HOSTNAME');
       },
     );
+
+    it('does not classify string with dot and space as hostname', () => {
+      expect(classifier.classify('api.example.com extra').type).toBe('GENERIC');
+    });
   });
 
   describe('GENERIC fallback', () => {

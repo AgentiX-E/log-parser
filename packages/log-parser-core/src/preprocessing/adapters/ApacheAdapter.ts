@@ -26,11 +26,11 @@ export class ApacheAdapter implements LogInputAdapter {
     const match = ApacheAdapter.APACHE_REGEX.exec(rawLine);
     if (!match) return {};
     return {
-      host: match[1] ?? '',
-      timestamp: match[2] ?? '',
-      request: match[3] ?? '',
-      status: match[4] ?? '',
-      size: match[5] ?? '',
+      host: match[1]!,
+      timestamp: match[2]!,
+      request: match[3]!,
+      status: match[4]!,
+      size: match[5]!,
       referer: match[6] ?? '',
       userAgent: match[7] ?? '',
     };
