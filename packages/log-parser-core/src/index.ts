@@ -67,3 +67,4 @@ export { DppSampler } from './control/DppSampler.js';
 export { MissAccumulator } from './control/MissAccumulator.js';
 export { SelfReflectionLoop } from './control/SelfReflectionLoop.js';
 export { PromptBuilder } from './control/PromptBuilder.js';
+export { ModelRouter } from './control/ModelRouter.js';

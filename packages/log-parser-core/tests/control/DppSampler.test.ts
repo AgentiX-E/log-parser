@@ -47,4 +47,15 @@ describe('DppSampler', () => {
     const vectors = Array.from({ length: 10 }, () => [1.0, 0.0]);
     expect(sampler.sample(vectors, 3)).toHaveLength(3);
   });
+
+  it('should handle zero vectors gracefully', () => {
+    const sampler = new DppSampler();
+    const vectors: number[][] = [
+      [0, 0],
+      [1, 0],
+      [0, 1],
+    ];
+    const result = sampler.sample(vectors, 2);
+    expect(result).toHaveLength(2);
+  });
 });

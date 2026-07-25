@@ -65,4 +65,21 @@ describe('AdaptiveTemplateCache', () => {
     cache.put(tpl('1', ['test']));
     expect(cache.getEffectiveFrequency('1')).toBeGreaterThan(0);
   });
+
+  it('should return zero effective frequency for unknown template', () => {
+    expect(cache.getEffectiveFrequency('nonexistent')).toBe(0);
+  });
+
+  it('should clear all entries', () => {
+    cache.put(tpl('1', ['a']));
+    cache.put(tpl('2', ['b']));
+    cache.get(['a']); // generate a hit
+    expect(cache.size).toBe(2);
+    expect(cache.hitRate).toBeGreaterThan(0);
+
+    cache.clear();
+    expect(cache.size).toBe(0);
+    expect(cache.hitRate).toBe(0);
+    expect(cache.get(['a'])).toBeNull();
+  });
 });

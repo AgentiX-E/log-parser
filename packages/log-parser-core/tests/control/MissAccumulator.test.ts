@@ -50,4 +50,16 @@ describe('MissAccumulator', () => {
     await vi.runAllTimersAsync();
     expect(acc.pending).toBe(0);
   });
+
+  it('isFlushing is false initially and toggles during flush', () => {
+    const onBatch = vi.fn().mockResolvedValue(undefined);
+    const acc = new MissAccumulator({ maxSize: 10, maxWaitMs: 5000 }, onBatch);
+    expect(acc.isFlushing).toBe(false);
+  });
+
+  it('pending returns zero for fresh accumulator', () => {
+    const onBatch = vi.fn().mockResolvedValue(undefined);
+    const acc = new MissAccumulator({ maxSize: 10, maxWaitMs: 5000 }, onBatch);
+    expect(acc.pending).toBe(0);
+  });
 });
