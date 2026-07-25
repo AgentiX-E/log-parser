@@ -19,7 +19,7 @@
     "src"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts --external nodejieba --external franc-min --external natural --external kuromoji --external ml-dbscan",
+    "build": "tsup src/index.ts --format esm,cjs --dts --external nodejieba --external franc-min --external natural --external kuromoji",
     "dev": "tsup src/index.ts --format esm,cjs --dts --watch",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
