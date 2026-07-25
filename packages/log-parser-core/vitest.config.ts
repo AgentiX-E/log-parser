@@ -1,14 +1,11 @@
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  ssr: {
-    noExternal: ['@agentix-e/drain-ts'],
-  },
   test: {
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
-      exclude: ['src/**/index.ts', 'src/**/*.d.ts'],
+      exclude: ['src/**/index.ts', 'src/**/*.d.ts', 'src/**/adapters/LogInputAdapter.ts', 'src/**/tokenizers/ITokenizer.ts'],
       thresholds: {
         statements: 95,
         branches: 95,
