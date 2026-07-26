@@ -16,7 +16,10 @@ export class BrowserFileAdapter {
       const file = fileList[i];
       if (!file) continue;
       const text = await file.text();
-      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+      const lines = text
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0);
       allLines.push(...lines);
     }
     adapter.#lines = allLines;
@@ -45,7 +48,10 @@ export class BrowserFileAdapter {
       throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
     }
     const text = await response.text();
-    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    const lines = text
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
     const adapter = new BrowserFileAdapter();
     adapter.#lines = lines;
     return adapter;

@@ -5,3 +5,4 @@ export { MissAccumulator } from './MissAccumulator.js';
 export { SelfReflectionLoop } from './SelfReflectionLoop.js';
 export { PromptBuilder } from './PromptBuilder.js';
 export { ModelRouter } from './ModelRouter.js';
+export { PostProcessor } from './PostProcessor.js';

@@ -88,10 +88,7 @@ export class IndexedDBPersistence implements PersistenceHandler {
       return null;
     }
     const db = this.#db!;
-    const request = db
-      .transaction([STORE_NAME], 'readonly')
-      .objectStore(STORE_NAME)
-      .get(STATE_KEY);
+    const request = db.transaction([STORE_NAME], 'readonly').objectStore(STORE_NAME).get(STATE_KEY);
     const result = await promisifyRequest(request);
     return result ?? null;
   }

@@ -26,3 +26,13 @@ describe('ChineseTokenizer', () => {
     expect(tokenizer.tokenize('   \t  ')).toEqual([]);
   });
 });
+
+it('getBackend reports fallback when nodejieba unavailable', () => {
+  const tokenizer = new ChineseTokenizer();
+  expect(tokenizer.getBackend()).toBe('fallback');
+});
+
+it('getBackend returns a valid backend type', () => {
+  const tokenizer = new ChineseTokenizer();
+  expect(['native', 'fallback']).toContain(tokenizer.getBackend());
+});

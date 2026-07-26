@@ -12,10 +12,7 @@ import { NodeStreamAdapter } from '@agentix-e/log-parser-node';
 export function createCLI(): Command {
   const program = new Command();
 
-  program
-    .name('log-parser')
-    .description('Intelligent log parsing engine')
-    .version('0.1.0');
+  program.name('log-parser').description('Intelligent log parsing engine').version('0.1.0');
 
   program
     .command('parse')
@@ -26,11 +23,13 @@ export function createCLI(): Command {
       const pipeline = new LogParserPipeline();
       for await (const line of NodeStreamAdapter.fromFile(opts.input)) {
         const result = pipeline.parse(line);
-        console.log(JSON.stringify({
-          logId: result.logId,
-          template: result.template,
-          source: result.source,
-        }));
+        console.log(
+          JSON.stringify({
+            logId: result.logId,
+            template: result.template,
+            source: result.source,
+          }),
+        );
       }
     });
 

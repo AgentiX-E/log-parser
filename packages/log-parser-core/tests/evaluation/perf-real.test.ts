@@ -18,7 +18,9 @@ function generateLog(): string {
   return template
     .replace('<*>', () => pick(['alice', 'bob', 'charlie', 'dave', 'eve', 'task-42', 'job-7']))
     .replace('<*>', () => pick(['alice', 'bob', 'charlie', 'dave', 'eve', 'task-42', 'job-7']))
-    .replace('<*>', () => pick(['192.168.1.1', '10.0.0.1', 'db-primary.local', '/api/users', '500']));
+    .replace('<*>', () =>
+      pick(['192.168.1.1', '10.0.0.1', 'db-primary.local', '/api/users', '500']),
+    );
 }
 
 describe('Performance Benchmark', () => {
@@ -39,8 +41,8 @@ describe('Performance Benchmark', () => {
     expect(elapsed).toBeLessThan(3000); // Under 3 seconds
     console.log(
       `[perf] ${LOG_COUNT.toLocaleString()} logs in ${elapsed.toFixed(0)}ms ` +
-      `(${throughput.toLocaleString()} logs/sec), ` +
-      `${pipeline.stats.templateCount} templates learned`,
+        `(${throughput.toLocaleString()} logs/sec), ` +
+        `${pipeline.stats.templateCount} templates learned`,
     );
   });
 

@@ -47,12 +47,12 @@ describe('IndexedDBPersistence', () => {
     const persistence = new IndexedDBPersistence();
     await persistence.init();
 
-    const binaryData = new Uint8Array([0x00, 0x01, 0xFE, 0xFF, 0x42]);
+    const binaryData = new Uint8Array([0x00, 0x01, 0xfe, 0xff, 0x42]);
     await persistence.saveState(binaryData);
 
     const loaded = await persistence.loadState();
     expect(loaded).not.toBeNull();
-    expect(Array.from(loaded!)).toEqual([0x00, 0x01, 0xFE, 0xFF, 0x42]);
+    expect(Array.from(loaded!)).toEqual([0x00, 0x01, 0xfe, 0xff, 0x42]);
   });
 
   it('load returns null when no state stored', async () => {
@@ -122,7 +122,7 @@ describe('IndexedDBPersistence', () => {
       error: new DOMException('Blocked', 'AbortError'),
       onsuccess: null as unknown as ((ev: Event) => void) | null,
       onerror: null as unknown as ((ev: Event) => void) | null,
-      onupgradeneeded: null as unknown as ((() => void) | null),
+      onupgradeneeded: null as unknown as (() => void) | null,
     };
 
     // Override with a spy that returns the fake request and fires onerror
@@ -149,7 +149,7 @@ describe('IndexedDBPersistence', () => {
       error: null as unknown as DOMException,
       onsuccess: null as unknown as ((ev: Event) => void) | null,
       onerror: null as unknown as ((ev: Event) => void) | null,
-      onupgradeneeded: null as unknown as ((() => void) | null),
+      onupgradeneeded: null as unknown as (() => void) | null,
     };
 
     const openSpy = vi.spyOn(indexedDB, 'open').mockImplementation(() => {
@@ -168,7 +168,6 @@ describe('IndexedDBPersistence', () => {
   });
 
   it('isInitialized returns false before init and true after', async () => {
-
     const persistence = new IndexedDBPersistence();
     expect(persistence.isInitialized()).toBe(false);
     expect(persistence.isInitialized()).toBe(false); // Call twice for good measure

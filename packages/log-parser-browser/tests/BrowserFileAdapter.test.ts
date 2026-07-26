@@ -113,7 +113,9 @@ describe('BrowserFileAdapter', () => {
       statusText: 'Not Found',
     });
     try {
-      await expect(BrowserFileAdapter.fromFetch('https://example.com/missing.txt')).rejects.toThrow('404');
+      await expect(BrowserFileAdapter.fromFetch('https://example.com/missing.txt')).rejects.toThrow(
+        '404',
+      );
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -123,7 +125,9 @@ describe('BrowserFileAdapter', () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
     try {
-      await expect(BrowserFileAdapter.fromFetch('https://example.com/logs.txt')).rejects.toThrow('Network error');
+      await expect(BrowserFileAdapter.fromFetch('https://example.com/logs.txt')).rejects.toThrow(
+        'Network error',
+      );
     } finally {
       globalThis.fetch = originalFetch;
     }

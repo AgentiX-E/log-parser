@@ -2,7 +2,12 @@
  * LogHub-2k evaluation benchmark.
  */
 import { describe, it, expect } from 'vitest';
-import { LogParserPipeline, Evaluator, type ParsedLogEntry, type GroundTruthEntry } from '@agentix-e/log-parser-core';
+import {
+  LogParserPipeline,
+  Evaluator,
+  type ParsedLogEntry,
+  type GroundTruthEntry,
+} from '@agentix-e/log-parser-core';
 
 const SSH_LOGS: readonly string[] = [
   'Accepted password for root from 192.168.1.1 port 22 ssh2',
@@ -61,15 +66,13 @@ describe('LogHub-2k Benchmark', () => {
 
   it('should return valid evaluation metrics', () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const pipeline = new LogParserPipeline();
+    const pipeline = new LogParserPipeline();
     const evaluator = new Evaluator();
 
     const parsed: ParsedLogEntry[] = [
       { logId: '0', template: 'User <*> logged in', eventId: 'E1' },
     ];
-    const gt: GroundTruthEntry[] = [
-      { logId: '0', template: 'User <*> logged in', eventId: 'E1' },
-    ];
+    const gt: GroundTruthEntry[] = [{ logId: '0', template: 'User <*> logged in', eventId: 'E1' }];
 
     const result = evaluator.evaluate(parsed, gt);
     expect(result.ga).toBe(1);

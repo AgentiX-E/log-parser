@@ -25,9 +25,7 @@ describe('WebLLMProvider', () => {
   // Single sample extraction
   it('should extract template from a single log sample', async () => {
     const provider = new WebLLMProvider();
-    const result = await provider.extractTemplate([
-      'User admin logged in from 192.168.1.1',
-    ]);
+    const result = await provider.extractTemplate(['User admin logged in from 192.168.1.1']);
 
     expect(result).toBeDefined();
     expect(typeof result.template).toBe('string');
@@ -72,11 +70,7 @@ describe('WebLLMProvider', () => {
   // Varying logs with numbers
   it('should detect numeric variables', async () => {
     const provider = new WebLLMProvider();
-    const samples = [
-      'Processed 100 items',
-      'Processed 200 items',
-      'Processed 300 items',
-    ];
+    const samples = ['Processed 100 items', 'Processed 200 items', 'Processed 300 items'];
 
     const result = await provider.extractTemplate(samples);
 
@@ -98,10 +92,7 @@ describe('WebLLMProvider', () => {
   // Confidence should be higher with more samples
   it('should give higher confidence for more samples', async () => {
     const provider = new WebLLMProvider();
-    const few = [
-      'Login from 192.168.1.1',
-      'Login from 10.0.0.1',
-    ];
+    const few = ['Login from 192.168.1.1', 'Login from 10.0.0.1'];
     const many = [
       'Login from 192.168.1.1',
       'Login from 10.0.0.1',
@@ -181,10 +172,7 @@ describe('WebLLMProvider', () => {
   // Email detection
   it('should detect email addresses', async () => {
     const provider = new WebLLMProvider();
-    const samples = [
-      'Email sent to admin@example.com',
-      'Email sent to user@test.org',
-    ];
+    const samples = ['Email sent to admin@example.com', 'Email sent to user@test.org'];
 
     const result = await provider.extractTemplate(samples);
 
@@ -283,9 +271,7 @@ describe('WebLLMProvider', () => {
   // Single log with no detectable variables
   it('should handle single log with no variables', async () => {
     const provider = new WebLLMProvider();
-    const result = await provider.extractTemplate([
-      'Server started successfully',
-    ]);
+    const result = await provider.extractTemplate(['Server started successfully']);
 
     expect(result.template).toBe('Server started successfully');
     expect(result.confidence).toBe(0.9);

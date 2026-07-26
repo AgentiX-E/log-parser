@@ -137,8 +137,14 @@ describe('Log Parser Server', () => {
       url: '/api/v1/calibrate',
       payload: {
         samples: [
-          { log: 'User admin logged in from 192.168.1.1', expectedTemplate: 'User <*> logged in from <IP>' },
-          { log: 'User guest logged in from 10.0.0.1', expectedTemplate: 'User <*> logged in from <IP>' },
+          {
+            log: 'User admin logged in from 192.168.1.1',
+            expectedTemplate: 'User <*> logged in from <IP>',
+          },
+          {
+            log: 'User guest logged in from 10.0.0.1',
+            expectedTemplate: 'User <*> logged in from <IP>',
+          },
         ],
       },
     });

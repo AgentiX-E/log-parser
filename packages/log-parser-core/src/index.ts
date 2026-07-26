@@ -59,6 +59,7 @@ export { TfIdfVectorizer } from './embedding/TfIdfVectorizer.js';
 
 // ── Cache ──
 export { AdaptiveTemplateCache } from './cache/AdaptiveTemplateCache.js';
+export { RagTemplateRetriever } from './cache/RagTemplateRetriever.js';
 
 // ── Control plane ──
 export { PartitioningEngine } from './control/PartitioningEngine.js';
@@ -68,6 +69,7 @@ export { MissAccumulator } from './control/MissAccumulator.js';
 export { SelfReflectionLoop } from './control/SelfReflectionLoop.js';
 export { PromptBuilder } from './control/PromptBuilder.js';
 export { ModelRouter } from './control/ModelRouter.js';
+export { PostProcessor } from './control/PostProcessor.js';
 
 // ── Granularity ──
 export { GranularityDistance, GranularityCalibrator } from './granularity/index.js';

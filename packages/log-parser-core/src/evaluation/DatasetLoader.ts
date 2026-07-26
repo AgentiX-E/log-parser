@@ -2,9 +2,22 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 export const DATASET_NAMES = [
-  'Android', 'Apache', 'BGL', 'Hadoop', 'HDFS', 'HealthApp', 'HPC',
-  'Linux', 'Mac', 'OpenSSH', 'OpenStack', 'Proxifier', 'Spark',
-  'Thunderbird', 'Windows', 'Zookeeper',
+  'Android',
+  'Apache',
+  'BGL',
+  'Hadoop',
+  'HDFS',
+  'HealthApp',
+  'HPC',
+  'Linux',
+  'Mac',
+  'OpenSSH',
+  'OpenStack',
+  'Proxifier',
+  'Spark',
+  'Thunderbird',
+  'Windows',
+  'Zookeeper',
 ] as const;
 
 export type DatasetName = (typeof DATASET_NAMES)[number];
@@ -49,7 +62,9 @@ export class DatasetLoader {
    */
   loadSync(name: DatasetName): BenchmarkDataset {
     const fixturePath = join(
-      process.cwd(), 'tests', 'fixtures',
+      process.cwd(),
+      'tests',
+      'fixtures',
       `loghub-2k-${name.toLowerCase()}.csv`,
     );
     let loadPath = fixturePath;
@@ -59,7 +74,7 @@ export class DatasetLoader {
     if (!existsSync(loadPath)) {
       throw new Error(
         `Dataset "${name}" not found at ${fixturePath}. ` +
-        'Download from https://github.com/logpai/Loghub-2.0',
+          'Download from https://github.com/logpai/Loghub-2.0',
       );
     }
     return this.parseFile(loadPath, name);
@@ -116,8 +131,15 @@ export class DatasetLoader {
     let current = '';
     let inQuotes = false;
     for (const ch of line) {
-      if (ch === '"') { inQuotes = !inQuotes; continue; }
-      if (ch === ',' && !inQuotes) { result.push(current.trim()); current = ''; continue; }
+      if (ch === '"') {
+        inQuotes = !inQuotes;
+        continue;
+      }
+      if (ch === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+        continue;
+      }
       current += ch;
     }
     result.push(current.trim());

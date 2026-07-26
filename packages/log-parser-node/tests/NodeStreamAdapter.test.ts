@@ -10,7 +10,11 @@ describe('NodeStreamAdapter', () => {
 
   afterEach(() => {
     for (const file of tempFiles) {
-      try { unlinkSync(file); } catch { /* already cleaned up */ }
+      try {
+        unlinkSync(file);
+      } catch {
+        /* already cleaned up */
+      }
     }
     tempFiles.length = 0;
   });
@@ -110,16 +114,15 @@ describe('NodeStreamAdapter', () => {
   });
 
   it('fromFile preserves line content including special characters', async () => {
-    const filePath = createTempFile('test10', 'line with spaces\nline,with,commas\nline|with|pipes\n');
+    const filePath = createTempFile(
+      'test10',
+      'line with spaces\nline,with,commas\nline|with|pipes\n',
+    );
     const lines: string[] = [];
     for await (const line of NodeStreamAdapter.fromFile(filePath)) {
       lines.push(line);
     }
-    expect(lines).toEqual([
-      'line with spaces',
-      'line,with,commas',
-      'line|with|pipes',
-    ]);
+    expect(lines).toEqual(['line with spaces', 'line,with,commas', 'line|with|pipes']);
   });
 
   it('fromFile handles CRLF line endings', async () => {

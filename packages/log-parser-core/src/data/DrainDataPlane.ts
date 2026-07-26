@@ -85,13 +85,11 @@ export class DrainDataPlane {
    * Captures all clusters and their templates.
    */
   saveSnapshot(): Uint8Array {
-    const clusters = Array.from(this.miner.drain.idToCluster.entries()).map(
-      ([id, cluster]) => ({
-        cluster_id: id,
-        log_template_tokens: [...cluster.logTemplateTokens],
-        size: cluster.size,
-      }),
-    );
+    const clusters = Array.from(this.miner.drain.idToCluster.entries()).map(([id, cluster]) => ({
+      cluster_id: id,
+      log_template_tokens: [...cluster.logTemplateTokens],
+      size: cluster.size,
+    }));
     return new TextEncoder().encode(JSON.stringify({ clusters }));
   }
 

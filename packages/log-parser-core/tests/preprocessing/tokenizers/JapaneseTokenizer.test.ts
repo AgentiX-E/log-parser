@@ -26,3 +26,13 @@ describe('JapaneseTokenizer', () => {
     expect(tokenizer.tokenize('   \t  ')).toEqual([]);
   });
 });
+
+it('getBackend reports native when kuromoji available', () => {
+  const tokenizer = new JapaneseTokenizer();
+  expect(tokenizer.getBackend()).toBe('native');
+});
+
+it('getBackend returns a valid backend type', () => {
+  const tokenizer = new JapaneseTokenizer();
+  expect(['native', 'fallback']).toContain(tokenizer.getBackend());
+});

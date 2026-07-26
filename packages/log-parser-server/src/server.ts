@@ -36,26 +36,30 @@ export async function createServer(config: ServerConfig = {}): Promise<ServerIns
   const startTime = Date.now();
 
   // POST /api/v1/parse — parse a single log or batch of logs
-  fastify.post('/api/v1/parse', {
-    schema: {
-      body: {
-        type: 'object',
-        properties: {
-          log: { type: 'string' },
-          logs: { type: 'array', items: { type: 'string' } },
+  fastify.post(
+    '/api/v1/parse',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          properties: {
+            log: { type: 'string' },
+            logs: { type: 'array', items: { type: 'string' } },
+          },
         },
       },
     },
-  }, async (request) => {
-    const body = request.body as { log?: string; logs?: string[] };
-    if (body.log) {
-      return { results: [pipeline.parse(body.log)] };
-    }
-    if (body.logs) {
-      return { results: body.logs.map((l) => pipeline.parse(l)) };
-    }
-    return { error: 'Provide "log" or "logs"' };
-  });
+    async (request) => {
+      const body = request.body as { log?: string; logs?: string[] };
+      if (body.log) {
+        return { results: [pipeline.parse(body.log)] };
+      }
+      if (body.logs) {
+        return { results: body.logs.map((l) => pipeline.parse(l)) };
+      }
+      return { error: 'Provide "log" or "logs"' };
+    },
+  );
 
   // GET /api/v1/templates — return current template count
   fastify.get('/api/v1/templates', async () => {
@@ -63,33 +67,37 @@ export async function createServer(config: ServerConfig = {}): Promise<ServerIns
   });
 
   // POST /api/v1/calibrate — HITL calibration endpoint
-  fastify.post('/api/v1/calibrate', {
-    schema: {
-      body: {
-        type: 'object',
-        properties: {
-          samples: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                log: { type: 'string' },
-                expectedTemplate: { type: 'string' },
+  fastify.post(
+    '/api/v1/calibrate',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          properties: {
+            samples: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  log: { type: 'string' },
+                  expectedTemplate: { type: 'string' },
+                },
+                required: ['log', 'expectedTemplate'],
               },
-              required: ['log', 'expectedTemplate'],
             },
           },
+          required: ['samples'],
         },
-        required: ['samples'],
       },
     },
-  }, async (request) => {
-    const { samples } = request.body as {
-      samples: Array<{ log: string; expectedTemplate: string }>;
-    };
-    pipeline.calibrateGranularity(samples);
-    return { calibrated: true, samplesProcessed: samples.length };
-  });
+    async (request) => {
+      const { samples } = request.body as {
+        samples: Array<{ log: string; expectedTemplate: string }>;
+      };
+      pipeline.calibrateGranularity(samples);
+      return { calibrated: true, samplesProcessed: samples.length };
+    },
+  );
 
   // GET /api/v1/stats — return full pipeline statistics
   fastify.get('/api/v1/stats', async () => {

@@ -157,7 +157,11 @@ export class WebLLMProvider implements ILLMProvider {
       return 'PATH';
     }
     // Hostname-like pattern (must contain at least one dot)
-    if (/^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)*[a-zA-Z]{2,}$/.test(token)) {
+    if (
+      /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)*[a-zA-Z]{2,}$/.test(
+        token,
+      )
+    ) {
       return 'HOSTNAME';
     }
     // Hex values

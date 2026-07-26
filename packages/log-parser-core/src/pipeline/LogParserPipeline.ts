@@ -248,7 +248,7 @@ export class LogParserPipeline {
       // Step 4: Self-reflection loop for template extraction (routed through ModelRouter)
       const activeProvider = this.modelRouter?.select(selected) ?? this.llmProvider;
       const modelId = activeProvider.modelId;
-      
+
       const reflector = new SelfReflectionLoop(
         activeProvider,
         this.config.controlPlane.selfReflection.enabled
@@ -334,9 +334,7 @@ export class LogParserPipeline {
       llmTokensConsumed: this.llmTokensConsumed,
       templateCount: this.drain.templateCount,
       cacheHitRate: this.cache.size > 0 ? this.cache.hitRate : 0,
-      modelStats: this.modelStats.size > 0
-        ? new Map(this.modelStats)
-        : undefined,
+      modelStats: this.modelStats.size > 0 ? new Map(this.modelStats) : undefined,
     };
   }
 
@@ -368,10 +366,7 @@ export class LogParserPipeline {
    * Restore a pipeline from a previously saved state file.
    * The restored pipeline continues from where the original left off.
    */
-  static loadStateSync(
-    filePath: string,
-    config?: LogParserPipelineConfig,
-  ): LogParserPipeline {
+  static loadStateSync(filePath: string, config?: LogParserPipelineConfig): LogParserPipeline {
     const pipeline = new LogParserPipeline(config);
     if (!existsSync(filePath)) return pipeline;
     const raw = readFileSync(filePath, 'utf-8');

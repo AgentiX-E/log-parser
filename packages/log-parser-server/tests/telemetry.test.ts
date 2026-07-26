@@ -46,8 +46,19 @@ describe('instrumentPipeline', () => {
 
   it('should set error status and rethrow when pipeline throws', () => {
     const brokenPipeline = {
-      parse: () => { throw new Error('simulated failure'); },
-      stats: { totalProcessed: 0, drainHits: 0, drainMisses: 0, cacheHits: 0, llmCalls: 0, llmTokensConsumed: 0, templateCount: 0, cacheHitRate: 0 },
+      parse: () => {
+        throw new Error('simulated failure');
+      },
+      stats: {
+        totalProcessed: 0,
+        drainHits: 0,
+        drainMisses: 0,
+        cacheHits: 0,
+        llmCalls: 0,
+        llmTokensConsumed: 0,
+        templateCount: 0,
+        cacheHitRate: 0,
+      },
     } as unknown as LogParserPipeline;
     const instrumented = instrumentPipeline(brokenPipeline);
     expect(() => instrumented.parse('bad log')).toThrow('simulated failure');

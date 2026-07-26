@@ -13,7 +13,10 @@ describe('CLI', () => {
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'log-parser-cli-'));
     testFile = path.join(tempDir, 'test.log');
-    fs.writeFileSync(testFile, 'User admin logged in from 192.168.1.1\nUser guest logged in from 10.0.0.1\n');
+    fs.writeFileSync(
+      testFile,
+      'User admin logged in from 192.168.1.1\nUser guest logged in from 10.0.0.1\n',
+    );
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     exitSpy = vi.spyOn(process, 'exit').mockImplementation((code?: number): never => {
       throw new Error(`process.exit(${code})`);
@@ -115,10 +118,9 @@ describe('CLI', () => {
     const program = createCLI();
     program.exitOverride();
     try {
-      await program.parseAsync(
-        parseArgs('parse', '-i', testFile, '--adapter', 'syslog'),
-        { from: 'node' },
-      );
+      await program.parseAsync(parseArgs('parse', '-i', testFile, '--adapter', 'syslog'), {
+        from: 'node',
+      });
     } catch {
       // Expected
     }
