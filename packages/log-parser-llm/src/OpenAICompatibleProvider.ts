@@ -158,8 +158,8 @@ export class OpenAICompatibleProvider implements ILLMProvider {
         confidence: result.object.confidence,
         usage: result.usage
           ? {
-              promptTokens: result.usage.promptTokens,
-              completionTokens: result.usage.completionTokens,
+              promptTokens: (result.usage as Record<string, number>).promptTokens ?? 0,
+              completionTokens: (result.usage as Record<string, number>).completionTokens ?? 0,
             }
           : undefined,
       };
@@ -188,8 +188,8 @@ export class OpenAICompatibleProvider implements ILLMProvider {
         confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.7,
         usage: textResult.usage
           ? {
-              promptTokens: textResult.usage.promptTokens,
-              completionTokens: textResult.usage.completionTokens,
+              promptTokens: (textResult.usage as Record<string, number>).promptTokens ?? 0,
+              completionTokens: (textResult.usage as Record<string, number>).completionTokens ?? 0,
             }
           : undefined,
       };

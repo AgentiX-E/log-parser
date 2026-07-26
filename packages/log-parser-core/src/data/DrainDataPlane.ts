@@ -27,11 +27,38 @@ const DEFAULT_DRAIN_CONFIG = TemplateMinerConfig.from({
  *
  * Performance: ~226K logs/sec with masking enabled (single-threaded, Node.js 22).
  */
+export interface DrainConfigUpdate {
+  readonly simTh?: number;
+  readonly depth?: number;
+  readonly maxChildren?: number;
+}
+
 export class DrainDataPlane {
   readonly miner: TemplateMiner;
+  private config: TemplateMinerConfig;
 
   constructor(config: TemplateMinerConfig = DEFAULT_DRAIN_CONFIG) {
+    this.config = config;
     this.miner = new TemplateMiner({ config });
+  }
+
+  /**
+   * Update the active Drain configuration.
+   *
+   * This rebuilds the internal TemplateMiner with new parameters.
+   * Existing clusters are preserved via snapshot export/import.
+   *
+   * Used by AdaptiveLearner for auto-tuning simTh and depth.
+   */
+  updateConfig(update: DrainConfigUpdate): void {
+    const snapshot = this.saveSnapshot();
+    this.config = TemplateMinerConfig.from({
+      simTh: update.simTh ?? this.config.simTh,
+      depth: update.depth ?? this.config.depth,
+      maxChildren: update.maxChildren ?? this.config.maxChildren,
+      maskingInstructions: this.config.maskingInstructions,
+    });
+    this.loadSnapshot(snapshot);
   }
 
   /**

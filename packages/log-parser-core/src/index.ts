@@ -67,6 +67,9 @@ export type { MissEvent } from './control/PartitioningEngine.js';
 export { DppSampler } from './control/DppSampler.js';
 export { MissAccumulator } from './control/MissAccumulator.js';
 export { SelfReflectionLoop } from './control/SelfReflectionLoop.js';
+
+// ── Adaptive Learning ──
+export { AdaptiveLearner } from './learning/AdaptiveLearner.js';
 export { PromptBuilder } from './control/PromptBuilder.js';
 export { ModelRouter } from './control/ModelRouter.js';
 export { PostProcessor } from './control/PostProcessor.js';
