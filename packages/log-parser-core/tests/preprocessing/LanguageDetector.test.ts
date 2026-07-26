@@ -7,11 +7,11 @@ describe('LanguageDetector', () => {
   });
 
   it('detects Chinese text', () => {
-    expect(detectLanguage('用户登录成功从终端').trim().length > 0 ? 'zh' : 'zh').toBe('zh');
+    expect(detectLanguage('用户登录成功从终端')).toBe('zh');
   });
 
   it('detects Japanese text', () => {
-    expect(detectLanguage('ログインしました').trim().length > 0 ? 'ja' : 'ja').toBe('ja');
+    expect(detectLanguage('ユーザーがログインしました')).toBe('ja');
   });
 
   it('returns other for very short input', () => {

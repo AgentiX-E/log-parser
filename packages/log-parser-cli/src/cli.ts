@@ -1,13 +1,30 @@
 import { Command } from 'commander';
-import { LogParserPipeline } from '@agentix-e/log-parser-core';
+import {
+  LogParserPipeline,
+  SyslogAdapter,
+  ApacheAdapter,
+  JsonLogAdapter,
+  AutoDetectAdapter,
+  type LogInputAdapter,
+} from '@agentix-e/log-parser-core';
 import { NodeStreamAdapter } from '@agentix-e/log-parser-node';
+
+/** Resolve an adapter name to an adapter instance. */
+function resolveAdapter(type: string): LogInputAdapter {
+  switch (type.toLowerCase()) {
+    case 'syslog':
+      return new SyslogAdapter();
+    case 'apache':
+      return new ApacheAdapter();
+    case 'json':
+      return new JsonLogAdapter();
+    default:
+      return new AutoDetectAdapter();
+  }
+}
 
 /**
  * Create the Commander CLI program for log parsing.
- *
- * Commands:
- * - parse: Parse log messages from a file
- * - stats: Show parsing statistics from a file
  */
 export function createCLI(): Command {
   const program = new Command();
@@ -18,11 +35,13 @@ export function createCLI(): Command {
     .command('parse')
     .description('Parse log messages')
     .requiredOption('-i, --input <file>', 'Input log file path')
-    .option('-a, --adapter <type>', 'Log format adapter', 'auto')
+    .option('-a, --adapter <type>', 'Log format adapter (syslog, apache, json, auto)', 'auto')
     .action(async (opts: { input: string; adapter: string }) => {
-      const pipeline = new LogParserPipeline();
+      const adapter = resolveAdapter(opts.adapter);
+      const pipeline = new LogParserPipeline({ adapter });
       for await (const line of NodeStreamAdapter.fromFile(opts.input)) {
-        const result = pipeline.parse(line);
+        const content = adapter.extractContent(line);
+        const result = pipeline.parse(content);
         console.log(
           JSON.stringify({
             logId: result.logId,

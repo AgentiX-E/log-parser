@@ -19,27 +19,19 @@ import type { ITokenizer } from './ITokenizer.js';
  */
 export class JapaneseTokenizer implements ITokenizer {
   readonly id = 'ja';
-  private backendType: 'native' | 'fallback' = 'fallback';
 
   constructor() {
-    // kuromoji is detected at import time; when available, backend resolves to 'native'.
-    // When not installed, fallback to 'fallback' for informational reporting only.
     // kuromoji requires async initialization; tokenize() always uses fallback.
-    try {
-      require('kuromoji');
-      this.backendType = 'native';
-    } catch {
-      // istanbul ignore next: catch only reached when kuromoji is not installed
-      this.backendType = 'fallback';
-    }
+    // For production Japanese tokenization, pre-initialize kuromoji externally
+    // and inject token sequences through a custom ITokenizer implementation.
   }
 
   tokenize(text: string): string[] {
     return text.split(/\s+/).filter((t: string) => t.length > 0);
   }
 
-  /** Returns the active tokenization backend. */
-  getBackend(): 'native' | 'fallback' {
-    return this.backendType;
+  /** Returns the active tokenization backend ('fallback' — kuromoji async init not wired). */
+  getBackend(): 'fallback' {
+    return 'fallback';
   }
 }

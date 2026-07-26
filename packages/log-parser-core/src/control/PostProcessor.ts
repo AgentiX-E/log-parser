@@ -1,5 +1,6 @@
 import { VariableTypeClassifier } from '../classifier/VariableTypeClassifier.js';
 
+/** Shared classifier instance — stateless, safe for concurrent access. */
 const classifier = new VariableTypeClassifier();
 
 /**

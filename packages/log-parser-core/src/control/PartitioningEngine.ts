@@ -20,8 +20,16 @@ export interface MissEvent {
  */
 export class PartitioningEngine {
   private readonly tfidf = new TfIdfVectorizer();
+  private readonly epsilon: number;
+  private readonly minPoints: number;
 
-  constructor(private readonly embeddingProvider?: IEmbeddingProvider) {}
+  constructor(
+    private readonly embeddingProvider?: IEmbeddingProvider,
+    dbscanConfig: { epsilon?: number; minPoints?: number } = {},
+  ) {
+    this.epsilon = dbscanConfig.epsilon ?? 0.5;
+    this.minPoints = dbscanConfig.minPoints ?? 3;
+  }
 
   async partition(logs: readonly MissEvent[]): Promise<readonly MissEvent[][]> {
     if (logs.length === 0) return [];
@@ -29,7 +37,7 @@ export class PartitioningEngine {
 
     const vectors = await this.computeVectors(logs);
     const distanceMatrix = this.computeDistanceMatrix(vectors);
-    const labels = this.dbscan(distanceMatrix, 0.5, 3);
+    const labels = this.dbscan(distanceMatrix, this.epsilon, this.minPoints);
     return this.groupByLabels(logs, labels);
   }
 

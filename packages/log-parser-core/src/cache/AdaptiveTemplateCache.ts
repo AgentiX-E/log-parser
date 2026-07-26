@@ -152,13 +152,21 @@ export class AdaptiveTemplateCache {
 
   /**
    * Prune trie nodes that no longer point to any valid template.
+   * Clears stale template references from evicted entries.
    * Called automatically after eviction to prevent memory leaks.
    * Returns the number of nodes removed.
    */
   compact(): number {
     let removed = 0;
     const prune = (node: CacheTrieNode): boolean => {
-      let hasAnyTemplate = node.template !== null;
+      // Verify the template reference is still valid (not evicted from templateMap) AND not null.
+      // Without templateMap.has(), evicted templates' trie nodes are never pruned, causing
+      // unbounded memory growth proportional to total evictions.
+      const stillValid = node.template !== null && this.templateMap.has(node.template!.id);
+      if (node.template !== null && !stillValid) {
+        node.template = null; // release reference to allow GC
+      }
+      let hasAnyTemplate = stillValid;
       for (const [key, child] of node.children) {
         if (prune(child)) {
           hasAnyTemplate = true;

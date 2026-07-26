@@ -49,15 +49,47 @@ export async function createServer(config: ServerConfig = {}): Promise<ServerIns
         },
       },
     },
-    async (request) => {
+    async (request, reply) => {
       const body = request.body as { log?: string; logs?: string[] };
       if (body.log) {
-        return { results: [pipeline.parse(body.log)] };
+        try {
+          return { results: [pipeline.parse(body.log)] };
+        } catch (err) {
+          return reply.status(500).send({ error: 'Parse failed', detail: String(err) });
+        }
       }
       if (body.logs) {
-        return { results: body.logs.map((l) => pipeline.parse(l)) };
+        try {
+          return { results: body.logs.map((l) => pipeline.parse(l)) };
+        } catch (err) {
+          return reply.status(500).send({ error: 'Parse failed', detail: String(err) });
+        }
       }
-      return { error: 'Provide "log" or "logs"' };
+      return reply.status(400).send({ error: 'Provide "log" or "logs"' });
+    },
+  );
+
+  // POST /api/v1/parse/batch — efficient batch parsing via parseBatch()
+  fastify.post(
+    '/api/v1/parse/batch',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['logs'],
+          properties: {
+            logs: { type: 'array', items: { type: 'string' } },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const body = request.body as { logs: string[] };
+      try {
+        return { results: pipeline.parseBatch(body.logs) };
+      } catch (err) {
+        return reply.status(500).send({ error: 'Batch parse failed', detail: String(err) });
+      }
     },
   );
 

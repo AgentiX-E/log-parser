@@ -27,12 +27,7 @@ describe('JapaneseTokenizer', () => {
   });
 });
 
-it('getBackend reports native when kuromoji available', () => {
+it('getBackend reports fallback (kuromoji async init not wired)', () => {
   const tokenizer = new JapaneseTokenizer();
-  expect(tokenizer.getBackend()).toBe('native');
-});
-
-it('getBackend returns a valid backend type', () => {
-  const tokenizer = new JapaneseTokenizer();
-  expect(['native', 'fallback']).toContain(tokenizer.getBackend());
+  expect(tokenizer.getBackend()).toBe('fallback');
 });
