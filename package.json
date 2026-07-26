@@ -27,7 +27,6 @@
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@types/node": "^22.0.0",
-    "@vitest/coverage-istanbul": "^4.1.10",
     "@vitest/coverage-v8": "^3.0.0",
     "eslint": "^9.0.0",
     "prettier": "^3.0.0",
@@ -40,6 +39,16 @@
   "pnpm": {
     "patchedDependencies": {
       "@agentix-e/drain-ts": "patches/@agentix-e__drain-ts.patch"
+    },
+    "overrides": {
+      "tar": ">=7.5.19"
+    },
+    "packageExtensions": {
+      "vitest": {
+        "peerDependencies": {
+          "@vitest/coverage-istanbul": "*"
+        }
+      }
     }
   }
 }
