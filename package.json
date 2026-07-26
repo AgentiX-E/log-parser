@@ -17,7 +17,7 @@
     "clean": "pnpm -r run clean",
     "benchmark:perf": "npx vitest run packages/log-parser-core/tests/benchmark/perf.test.ts --root packages/log-parser-core",
     "benchmark:loghub": "npx vitest run packages/log-parser-core/tests/benchmark/loghub.test.ts --root packages/log-parser-core",
-    "benchmark:deepseek": "node benchmark/deepseek-benchmark.ts",
+    "benchmark:deepseek": "npx tsx benchmark/deepseek-benchmark.ts",
     "benchmark": "npx vitest run packages/log-parser-core/tests/benchmark/perf.test.ts --root packages/log-parser-core && npx vitest run packages/log-parser-core/tests/benchmark/loghub.test.ts --root packages/log-parser-core"
   },
   "engines": {

@@ -19,15 +19,14 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const {
-    LogParserPipeline,
-    Evaluator,
-  } = await import('@agentix-e/log-parser-core');
-  const { OpenAICompatibleProvider } = await import('@agentix-e/log-parser-llm');
+  const core = await import('../packages/log-parser-core/dist/index.js');
+  const { LogParserPipeline, Evaluator } = core;
+  const llmPkg = await import('../packages/log-parser-llm/dist/index.js');
+  const { OpenAICompatibleProvider } = llmPkg;
 
   const llm = new OpenAICompatibleProvider({
     provider: 'deepseek',
-    model: 'deepseek-chat',
+    model: 'deepseek-v4-pro',
     apiKey: API_KEY,
     baseURL: 'https://api.deepseek.com/v1',
   });
