@@ -18,9 +18,13 @@ export function detectLanguage(text: string): SupportedLanguage {
   if (!text || text.trim().length < 3) return 'other';
   const code = franc(text, { minLength: 3, only: ['cmn', 'jpn', 'eng'] });
   switch (code) {
-    case 'cmn': return 'zh';
-    case 'jpn': return 'ja';
-    case 'eng': return 'en';
-    default: return 'other';
+    case 'cmn':
+      return 'zh';
+    case 'jpn':
+      return 'ja';
+    case 'eng':
+      return 'en';
+    default:
+      return 'other';
   }
 }

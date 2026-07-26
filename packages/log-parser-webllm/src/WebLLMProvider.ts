@@ -34,7 +34,7 @@ export class WebLLMProvider implements ILLMProvider {
   /** Static factory — WebLLM requires async engine initialization. */
   static async create(config: { readonly model: string }): Promise<WebLLMProvider> {
     // Dynamic import of @mlc-ai/web-llm (browser-only module, no TS types available)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const webllm: WebLLMModule = await import('@mlc-ai/web-llm');
     const provider = new WebLLMProvider(config);
     provider.engine = await webllm.CreateMLCEngine(config.model, {

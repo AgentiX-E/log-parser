@@ -7,6 +7,8 @@
  *
  * Self-implemented — no suitable npm DPP implementation exists.
  */
+import { cosineSimilarity } from '../embedding/Similarity.js';
+
 export class DppSampler {
   /**
    * Select K diverse sample indices from a set of feature vectors.
@@ -29,28 +31,12 @@ export class DppSampler {
     const L: number[][] = Array.from({ length: n }, () => new Array(n).fill(0));
     for (let i = 0; i < n; i++) {
       for (let j = 0; j <= i; j++) {
-        const sim = this.cosine(vectors[i]!, vectors[j]!);
+        const sim = cosineSimilarity(vectors[i]!, vectors[j]!);
         L[i]![j] = sim;
         L[j]![i] = sim;
       }
     }
     return L;
-  }
-
-  private cosine(a: number[], b: number[]): number {
-    let dot = 0;
-    let na = 0;
-    let nb = 0;
-    const len = Math.max(a.length, b.length);
-    for (let i = 0; i < len; i++) {
-      const av = a[i] ?? 0;
-      const bv = b[i] ?? 0;
-      dot += av * bv;
-      na += av * av;
-      nb += bv * bv;
-    }
-    if (na === 0 || nb === 0) return 0;
-    return dot / (Math.sqrt(na) * Math.sqrt(nb));
   }
 
   /** Greedy maximum-determinant selection. */

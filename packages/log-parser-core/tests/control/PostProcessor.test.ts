@@ -2,42 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { PostProcessor } from '../../src/control/PostProcessor.js';
 
 describe('PostProcessor', () => {
-  describe('consolidateVariables', () => {
-    it('should merge adjacent <*> tokens', () => {
-      expect(PostProcessor.consolidateVariables('User <*> <*> logged in')).toBe(
-        'User <*> logged in',
-      );
-    });
-
-    it('should merge multiple adjacent <*> tokens', () => {
-      expect(PostProcessor.consolidateVariables('<*> <*> <*> done')).toBe('<*> done');
-    });
-
-    it('should not change non-adjacent variables', () => {
-      expect(PostProcessor.consolidateVariables('User <*> logged <*> in')).toBe(
-        'User <*> logged <*> in',
-      );
-    });
-  });
-
-  describe('typeNumbers', () => {
-    it('should replace standalone numbers with <NUM>', () => {
-      expect(PostProcessor.typeNumbers('count 42 items')).toBe('count <NUM> items');
-    });
-
-    it('should replace decimals with <NUM>', () => {
-      expect(PostProcessor.typeNumbers('value 3.14 pi')).toBe('value <NUM> pi');
-    });
-
-    it('should not replace non-numeric tokens', () => {
-      expect(PostProcessor.typeNumbers('User logged in')).toBe('User logged in');
-    });
-
-    it('should handle multiple numbers', () => {
-      expect(PostProcessor.typeNumbers('from 10 to 20')).toBe('from <NUM> to <NUM>');
-    });
-  });
-
   describe('typeIps', () => {
     it('should replace IP with <IP>', () => {
       expect(PostProcessor.typeIps('from 192.168.1.1 to')).toBe('from <IP> to');
@@ -146,30 +110,88 @@ describe('PostProcessor', () => {
     });
   });
 
-  describe('correct', () => {
-    it('should run full pipeline and track rules', () => {
-      const result = PostProcessor.correct('User <*> <*> from 192.168.1.1 port 8080', [
-        'User alice bob from 192.168.1.1 port 8080',
+  describe('correct (9-rule engine)', () => {
+    it('should replace IP addresses with <IP>', () => {
+      const result = PostProcessor.correct('User <*> from 192.168.1.1 port <*>', [
+        'User alice from 192.168.1.1 port 22',
       ]);
-      expect(result.template).toContain('<*>');
       expect(result.template).toContain('<IP>');
-      expect(result.rulesApplied.length).toBeGreaterThan(0);
+      expect(result.rulesApplied).toContain('type-ips');
+    });
+
+    it('should replace UUIDs with <UUID>', () => {
+      const result = PostProcessor.correct('User <*> id 550e8400-e29b-41d4-a716-446655440000', [
+        'User alice id 550e8400-e29b-41d4-a716-446655440000',
+      ]);
+      expect(result.template).toContain('<UUID>');
+      expect(result.rulesApplied).toContain('type-uuids');
+    });
+
+    it('should replace emails with <EMAIL>', () => {
+      const result = PostProcessor.correct('User <*> email user@example.com', [
+        'User alice email user@example.com',
+      ]);
+      expect(result.template).toContain('<EMAIL>');
+      expect(result.rulesApplied).toContain('type-emails');
+    });
+
+    it('should replace hostnames with <HOSTNAME>', () => {
+      const result = PostProcessor.correct('connect to db.primary.local', [
+        'connect to db.primary.local',
+      ]);
+      expect(result.template).toContain('<HOSTNAME>');
+    });
+
+    it('should replace paths with <PATH>', () => {
+      const result = PostProcessor.correct('open /var/log/syslog file', [
+        'open /var/log/syslog file',
+      ]);
+      expect(result.template).toContain('<PATH>');
+    });
+
+    it('should replace booleans (BL rule)', () => {
+      const result = PostProcessor.correct('flag true enabled', ['flag true enabled']);
+      expect(result.template).toContain('<*>');
+      expect(result.rulesApplied).toContain('BL/US');
+    });
+
+    it('should replace null/root (US rule)', () => {
+      const result = PostProcessor.correct('user root action', ['user root action']);
+      expect(result.template).toContain('<*>');
+      expect(result.rulesApplied).toContain('BL/US');
+    });
+
+    it('should consolidate consecutive variables (CV rule)', () => {
+      const result = PostProcessor.correct('A <*> <*> B', ['A 1 2 B']);
+      expect(result.template).toBe('A <*> B');
+      expect(result.rulesApplied).toContain('CV');
     });
 
     it('should report no rules when template is already clean', () => {
       const result = PostProcessor.correct('User <*> logged in from <IP>', [
         'User alice logged in from 192.168.1.1',
       ]);
-      expect(result.rulesApplied.filter((r) => r !== 'consistency-warning')).toHaveLength(0);
+      // May apply CS-warning if consistency check triggers, but no other rules
+      const nonCsRules = result.rulesApplied.filter((r) => r !== 'CS-warning');
+      expect(nonCsRules.length).toBe(0);
     });
 
-    it('should type UUID and EMAIL in one pass', () => {
-      const result = PostProcessor.correct(
-        'User <*> id 550e8400-e29b-41d4-a716-446655440000 email user@example.com',
-        ['User alice id 550e8400-e29b-41d4-a716-446655440000 email user@example.com'],
-      );
-      expect(result.template).toContain('<UUID>');
-      expect(result.template).toContain('<EMAIL>');
+    it('should detect consistency failure (CS rule)', () => {
+      const result = PostProcessor.correct('User <*> logged in', [
+        'User alice logged in',
+        'ERROR something broke',
+      ]);
+      expect(result.rulesApplied).toContain('CS-warning');
+    });
+
+    it('should handle mixed typed and heuristic corrections', () => {
+      const result = PostProcessor.correct('from 192.168.1.1 port 8080 user true path /var/log', [
+        'from 192.168.1.1 port 8080 user true path /var/log',
+      ]);
+      expect(result.template).toContain('<IP>');
+      expect(result.template).toContain('<PATH>');
+      expect(result.template).toContain('<*>');
+      expect(result.rulesApplied.length).toBeGreaterThan(1);
     });
   });
 });

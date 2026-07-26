@@ -32,17 +32,17 @@ describe('WebLLMProvider', () => {
   it('parseResponse extracts content within TEMPLATE tags', () => {
     const provider = new WebLLMProvider({ model: 'test' });
     // Access private method via type assertion for testing
-    const result = (provider as unknown as { parseResponse: (c: string) => { template: string } }).parseResponse(
-      '<TEMPLATE>User <*> logged in from <IP></TEMPLATE>',
-    );
+    const result = (
+      provider as unknown as { parseResponse: (c: string) => { template: string } }
+    ).parseResponse('<TEMPLATE>User <*> logged in from <IP></TEMPLATE>');
     expect(result.template).toBe('User <*> logged in from <IP>');
   });
 
   it('parseResponse falls back to raw content without TEMPLATE tags', () => {
     const provider = new WebLLMProvider({ model: 'test' });
-    const result = (provider as unknown as { parseResponse: (c: string) => { template: string } }).parseResponse(
-      'User <*> logged in from <IP>',
-    );
+    const result = (
+      provider as unknown as { parseResponse: (c: string) => { template: string } }
+    ).parseResponse('User <*> logged in from <IP>');
     expect(result.template).toBe('User <*> logged in from <IP>');
   });
 

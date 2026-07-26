@@ -64,7 +64,7 @@ describe('Log Parser Server', () => {
       payload: {},
     });
 
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode).toBe(400);
     const body = JSON.parse(res.body) as { error?: string };
     expect(body.error).toBeDefined();
     expect(body.error).toBe('Provide "log" or "logs"');

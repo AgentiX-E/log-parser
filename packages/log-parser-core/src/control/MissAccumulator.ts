@@ -30,9 +30,11 @@ export class MissAccumulator {
     private readonly config: MissAccumulatorConfig,
     private readonly onBatchReady: (batch: readonly MissEvent[]) => Promise<void>,
   ) {
-    this.onError = config.onError ?? ((error: Error) => {
-      console.error('[MissAccumulator] Batch processing error:', error.message);
-    });
+    this.onError =
+      config.onError ??
+      ((error: Error) => {
+        console.error('[MissAccumulator] Batch processing error:', error.message);
+      });
   }
 
   /** Push a miss event into the accumulator. Triggers flush if batch is full. */

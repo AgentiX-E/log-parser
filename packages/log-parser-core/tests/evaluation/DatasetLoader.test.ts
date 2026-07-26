@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DatasetLoader, DATASET_NAMES } from '../../src/evaluation/DatasetLoader.js';
+import { DatasetLoader } from '../../src/evaluation/DatasetLoader.js';
 
 const FIXTURE_DIR = join(__dirname, '..', 'fixtures');
 
