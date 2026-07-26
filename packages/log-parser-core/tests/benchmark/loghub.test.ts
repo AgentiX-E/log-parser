@@ -60,7 +60,8 @@ describe('LogHub-2k Benchmark', () => {
   });
 
   it('should return valid evaluation metrics', () => {
-    const pipeline = new LogParserPipeline();
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+const pipeline = new LogParserPipeline();
     const evaluator = new Evaluator();
 
     const parsed: ParsedLogEntry[] = [

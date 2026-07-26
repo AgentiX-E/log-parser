@@ -1,6 +1,7 @@
 import {
   TemplateMiner,
   TemplateMinerConfig,
+  LogCluster,
   DEFAULT_MASKING_INSTRUCTIONS,
   type ExtractedParameter,
 } from '@agentix-e/drain-ts';
@@ -77,6 +78,50 @@ export class DrainDataPlane {
   /** Total number of log messages processed. */
   get totalProcessed(): number {
     return this.miner.drain.getTotalClusterSize();
+  }
+
+  /**
+   * Serialize the current Drain state to a byte buffer for persistence.
+   * Captures all clusters and their templates.
+   */
+  saveSnapshot(): Uint8Array {
+    const clusters = Array.from(this.miner.drain.idToCluster.entries()).map(
+      ([id, cluster]) => ({
+        cluster_id: id,
+        log_template_tokens: [...cluster.logTemplateTokens],
+        size: cluster.size,
+      }),
+    );
+    return new TextEncoder().encode(JSON.stringify({ clusters }));
+  }
+
+  /**
+   * Restore Drain state from a previously saved snapshot.
+   * Rebuilds the prefix tree and cluster registry.
+   */
+  loadSnapshot(data: Uint8Array): void {
+    const raw = JSON.parse(new TextDecoder().decode(data));
+    if (!raw.clusters || !Array.isArray(raw.clusters)) return;
+    this.miner.drain.idToCluster.clear();
+    let maxId = 0;
+    for (const c of raw.clusters) {
+      const tokens: readonly string[] = Object.freeze([...c.log_template_tokens]);
+      const cluster = new LogCluster(tokens, c.cluster_id);
+      cluster.size = c.size;
+      this.miner.drain.idToCluster.set(c.cluster_id, cluster);
+      this.miner.drain.addSeqToPrefixTree(this.miner.drain.rootNode, cluster);
+      if (c.cluster_id > maxId) maxId = c.cluster_id;
+    }
+    this.miner.drain.clustersCounter = maxId;
+  }
+
+  /**
+   * Create a DrainDataPlane from a previously saved snapshot.
+   */
+  static fromSnapshot(snapshot: Uint8Array, config?: TemplateMinerConfig): DrainDataPlane {
+    const plane = new DrainDataPlane(config);
+    plane.loadSnapshot(snapshot);
+    return plane;
   }
 
   private toExtractedParams(params: readonly ExtractedParameter[]): readonly {

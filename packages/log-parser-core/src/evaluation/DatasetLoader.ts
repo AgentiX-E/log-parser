@@ -1,8 +1,5 @@
 import { readFileSync, existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
+import { join } from 'node:path';
 
 export const DATASET_NAMES = [
   'Android', 'Apache', 'BGL', 'Hadoop', 'HDFS', 'HealthApp', 'HPC',
@@ -52,7 +49,7 @@ export class DatasetLoader {
    */
   loadSync(name: DatasetName): BenchmarkDataset {
     const fixturePath = join(
-      __dirname, '..', '..', 'tests', 'fixtures',
+      process.cwd(), 'tests', 'fixtures',
       `loghub-2k-${name.toLowerCase()}.csv`,
     );
     let loadPath = fixturePath;

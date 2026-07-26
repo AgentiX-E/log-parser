@@ -18,14 +18,12 @@ export class BenchmarkRunner {
   private readonly evaluator = new Evaluator();
 
   run(pipeline: LogParserPipeline, dataset: BenchmarkDataset): ParsingEvaluationResult {
-    const parsed: ParsedLogEntry[] = dataset.logs.map((log) => {
-      const result = pipeline.parse(log);
-      return {
-        logId: result.logId,
-        template: result.template,
-        eventId: String(result.templateId),
-      };
-    });
+    const results = pipeline.parseBatch(dataset.logs);
+    const parsed: ParsedLogEntry[] = results.map((r, i) => ({
+      logId: String(i),
+      template: r.template,
+      eventId: String(r.templateId),
+    }));
 
     return this.evaluator.evaluate(parsed, dataset.groundTruth);
   }

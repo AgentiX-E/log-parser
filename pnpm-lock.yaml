@@ -108,6 +108,10 @@ importers:
       zod:
         specifier: ^3.0.0
         version: 3.25.76
+    devDependencies:
+      dotenv:
+        specifier: ^17.4.2
+        version: 17.4.2
 
   packages/log-parser-node:
     dependencies:
@@ -3622,8 +3626,7 @@ snapshots:
 
   diff-match-patch@1.0.5: {}
 
-  dotenv@17.4.2:
-    optional: true
+  dotenv@17.4.2: {}
 
   doublearray@0.0.2:
     optional: true

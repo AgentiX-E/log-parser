@@ -1,3 +1,4 @@
+import { writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { DrainDataPlane } from '../data/DrainDataPlane.js';
 import type { ILLMProvider } from '../llm/ILLMProvider.js';
 import type { IEmbeddingProvider } from '../embedding/IEmbeddingProvider.js';
@@ -8,6 +9,7 @@ import { PartitioningEngine, type MissEvent } from '../control/PartitioningEngin
 import { DppSampler } from '../control/DppSampler.js';
 import { MissAccumulator } from '../control/MissAccumulator.js';
 import { SelfReflectionLoop } from '../control/SelfReflectionLoop.js';
+import { ModelRouter } from '../control/ModelRouter.js';
 import { AdaptiveTemplateCache } from '../cache/AdaptiveTemplateCache.js';
 import { GranularityCalibrator } from '../granularity/GranularityCalibrator.js';
 import type { GranularityConfig } from '../granularity/GranularityDistance.js';
@@ -26,6 +28,8 @@ export interface LogParserPipelineConfig {
   readonly llmProvider?: ILLMProvider;
   /** Embedding provider. undefined = built-in TF-IDF. */
   readonly embeddingProvider?: IEmbeddingProvider;
+  /** Model router for multi-model LLM selection. */
+  readonly modelRouter?: ModelRouter;
   /** Pipeline layer configuration (merged with defaults). */
   readonly layers?: Partial<PipelineLayerConfig>;
   /** Pre-configured multi-language tokenizer (optional). */
@@ -69,12 +73,16 @@ export class LogParserPipeline {
   private readonly llmProvider?: ILLMProvider;
   private readonly embeddingProvider?: IEmbeddingProvider;
   private readonly classifier: VariableTypeClassifier | undefined;
+  private readonly modelRouter?: ModelRouter;
 
   // Control plane (wired when llmProvider is present)
   private readonly accumulator?: MissAccumulator;
   private readonly partitioner?: PartitioningEngine;
   private readonly sampler = new DppSampler();
   private readonly cache = new AdaptiveTemplateCache();
+
+  // Concurrency safety: serialize parse() calls through a promise chain
+  private parseQueue: Promise<void> = Promise.resolve();
 
   // Stats
   private totalProcessed = 0;
@@ -83,6 +91,7 @@ export class LogParserPipeline {
   private cacheHits = 0;
   private llmCalls = 0;
   private llmTokensConsumed = 0;
+  private modelStats = new Map<string, { calls: number; tokens: number }>();
 
   // Granularity calibration (HITL)
   private readonly calibrator = new GranularityCalibrator();
@@ -92,6 +101,7 @@ export class LogParserPipeline {
   constructor(pipelineConfig: LogParserPipelineConfig = {}) {
     this.llmProvider = pipelineConfig.llmProvider;
     this.embeddingProvider = pipelineConfig.embeddingProvider;
+    this.modelRouter = pipelineConfig.modelRouter;
     this.classifier = pipelineConfig.classifier;
     this.config = {
       ...defaultPipelineConfig(),
@@ -113,14 +123,29 @@ export class LogParserPipeline {
   }
 
   /**
-   * Parse a single log message.
-   *
-   * When the data plane reports a "miss" and an ILLMProvider is
-   * configured, the miss event is queued for asynchronous batch
-   * processing through the full control plane chain:
-   * MissAccumulator → PartitioningEngine → DppSampler → SelfReflectionLoop.
+   * Parse a single log message. Synchronous for single-threaded use.
+   * For concurrent access, use {@link parseAsync}.
    */
   parse(logMessage: string): LogParseResult {
+    return this.parseSync(logMessage);
+  }
+
+  /**
+   * Concurrency-safe parse via internal serialization promise chain.
+   * Use when calling parse() from multiple concurrent contexts.
+   */
+  async parseAsync(logMessage: string): Promise<LogParseResult> {
+    return new Promise((resolve) => {
+      this.parseQueue = this.parseQueue.then(() => {
+        resolve(this.parseSync(logMessage));
+      });
+    });
+  }
+
+  /**
+   * Synchronous parse implementation (internal use only).
+   */
+  private parseSync(logMessage: string): LogParseResult {
     this.totalProcessed++;
     const logId = String(this.nextLogId++);
 
@@ -137,17 +162,14 @@ export class LogParserPipeline {
       };
     }
 
-    // Miss — new cluster created by drain-ts
     this.drainMisses++;
 
-    // If control plane is wired, enqueue for async LLM processing
     if (this.accumulator) {
-      const missEvent: MissEvent = {
+      this.accumulator.push({
         logMessage,
         tokens: result.tokens,
         timestamp: Date.now(),
-      };
-      this.accumulator.push(missEvent);
+      });
     }
 
     return {
@@ -157,6 +179,13 @@ export class LogParserPipeline {
       parameters: result.parameters,
       source: 'drain-loose',
     };
+  }
+
+  /**
+   * Parse a batch of log messages efficiently. Synchronous — uses internal serialization.
+   */
+  parseBatch(logs: readonly string[]): LogParseResult[] {
+    return logs.map((log) => this.parseSync(log));
   }
 
   /**
@@ -216,9 +245,12 @@ export class LogParserPipeline {
         selected = logMessages.slice(0, sampleCount);
       }
 
-      // Step 4: Self-reflection loop for template extraction
+      // Step 4: Self-reflection loop for template extraction (routed through ModelRouter)
+      const activeProvider = this.modelRouter?.select(selected) ?? this.llmProvider;
+      const modelId = activeProvider.modelId;
+      
       const reflector = new SelfReflectionLoop(
-        this.llmProvider,
+        activeProvider,
         this.config.controlPlane.selfReflection.enabled
           ? { maxIterations: this.config.controlPlane.selfReflection.maxIterations }
           : { maxIterations: 1 },
@@ -226,9 +258,14 @@ export class LogParserPipeline {
       const result = await reflector.refine(selected);
 
       this.llmCalls++;
+      const existing = this.modelStats.get(modelId) ?? { calls: 0, tokens: 0 };
+      existing.calls++;
       if (result.usage) {
-        this.llmTokensConsumed += result.usage.promptTokens + result.usage.completionTokens;
+        const tokens = result.usage.promptTokens + result.usage.completionTokens;
+        this.llmTokensConsumed += tokens;
+        existing.tokens += tokens;
       }
+      this.modelStats.set(modelId, existing);
 
       // Step 5: Cache the extracted template
       const template: LogTemplate = {
@@ -286,7 +323,7 @@ export class LogParserPipeline {
     return this.calibrator.config;
   }
 
-  /** Runtime statistics. */
+  /** Runtime statistics including per-model breakdown if ModelRouter is wired. */
   get stats(): PipelineStats {
     return {
       totalProcessed: this.totalProcessed,
@@ -297,6 +334,53 @@ export class LogParserPipeline {
       llmTokensConsumed: this.llmTokensConsumed,
       templateCount: this.drain.templateCount,
       cacheHitRate: this.cache.size > 0 ? this.cache.hitRate : 0,
+      modelStats: this.modelStats.size > 0
+        ? new Map(this.modelStats)
+        : undefined,
     };
+  }
+
+  // ============================================================
+  // Persistence: save/load full pipeline state
+  // ============================================================
+
+  /** Serialize full pipeline state for persistence. */
+  exportState(): Record<string, unknown> {
+    return {
+      version: '1.0.0',
+      drainSnapshot: Array.from(this.drain.saveSnapshot()),
+      totalProcessed: this.totalProcessed,
+      drainHits: this.drainHits,
+      drainMisses: this.drainMisses,
+      cacheHits: this.cacheHits,
+      llmCalls: this.llmCalls,
+      llmTokensConsumed: this.llmTokensConsumed,
+      nextLogId: this.nextLogId,
+    };
+  }
+
+  /** Save pipeline state to a file. */
+  saveStateSync(filePath: string): void {
+    writeFileSync(filePath, JSON.stringify(this.exportState()), 'utf-8');
+  }
+
+  /**
+   * Restore a pipeline from a previously saved state file.
+   * The restored pipeline continues from where the original left off.
+   */
+  static loadStateSync(
+    filePath: string,
+    config?: LogParserPipelineConfig,
+  ): LogParserPipeline {
+    const pipeline = new LogParserPipeline(config);
+    if (!existsSync(filePath)) return pipeline;
+    const raw = readFileSync(filePath, 'utf-8');
+    const state = JSON.parse(raw);
+    if (state.drainSnapshot && Array.isArray(state.drainSnapshot)) {
+      pipeline.drain.loadSnapshot(new Uint8Array(state.drainSnapshot));
+    }
+    if (typeof state.totalProcessed === 'number') pipeline.totalProcessed = state.totalProcessed;
+    if (typeof state.nextLogId === 'number') pipeline.nextLogId = state.nextLogId;
+    return pipeline;
   }
 }

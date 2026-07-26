@@ -96,6 +96,8 @@ export interface PipelineStats {
   readonly llmTokensConsumed: number;
   readonly templateCount: number;
   readonly cacheHitRate: number;
+  /** Per-model statistics when ModelRouter is configured. */
+  readonly modelStats?: ReadonlyMap<string, { calls: number; tokens: number }>;
 }
 
 /** Partial config applying defaults for all unspecified fields. */
