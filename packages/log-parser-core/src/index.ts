@@ -37,7 +37,7 @@ export {
 
 // ── Preprocessing ──
 export { MultiLangTokenizer } from './preprocessing/MultiLangTokenizer.js';
-export { LanguageDetector, type SupportedLanguage } from './preprocessing/LanguageDetector.js';
+export { detectLanguage as LanguageDetector, type SupportedLanguage } from './preprocessing/LanguageDetector.js';
 export { StructuredLogExtractor } from './preprocessing/StructuredLogExtractor.js';
 
 // ── Tokenizers ──

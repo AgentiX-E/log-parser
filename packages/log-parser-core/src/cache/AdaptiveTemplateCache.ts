@@ -146,9 +146,30 @@ export class AdaptiveTemplateCache {
       this.templateMap.delete(lowestId);
       this.freqMap.delete(lowestId);
       this.timestampMap.delete(lowestId);
-      // Note: The trie still contains the evicted template's node.
-      // Future lookups will find the node but the templateMap check will miss.
-      // A periodic compact() could prune dead trie nodes.
+      this.compact();
     }
+  }
+
+  /**
+   * Prune trie nodes that no longer point to any valid template.
+   * Called automatically after eviction to prevent memory leaks.
+   * Returns the number of nodes removed.
+   */
+  compact(): number {
+    let removed = 0;
+    const prune = (node: CacheTrieNode): boolean => {
+      let hasAnyTemplate = node.template !== null;
+      for (const [key, child] of node.children) {
+        if (prune(child)) {
+          hasAnyTemplate = true;
+        } else {
+          node.children.delete(key);
+          removed++;
+        }
+      }
+      return hasAnyTemplate;
+    };
+    prune(this.trie);
+    return removed;
   }
 }

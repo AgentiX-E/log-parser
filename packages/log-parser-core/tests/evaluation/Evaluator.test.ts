@@ -29,10 +29,15 @@ describe('Evaluator', () => {
   });
 
   describe('complete mismatch', () => {
-    it('should return metrics close to 0', () => {
-      const parsed: ParsedLogEntry[] = [{ logId: '0', template: 'User <*> logged', eventId: 'E1' }];
-      const gt: GroundTruthEntry[] = [{ logId: '0', template: 'ERROR failed', eventId: 'E99' }];
-
+    it('should return GA=0 for contaminated group and PA=0 for wrong templates', () => {
+      const parsed: ParsedLogEntry[] = [
+        { logId: '0', template: 'User <*> logged', eventId: 'E1' },
+        { logId: '1', template: 'ERROR <*> failed', eventId: 'E1' },
+      ];
+      const gt: GroundTruthEntry[] = [
+        { logId: '0', template: 'User logged', eventId: 'E1' },
+        { logId: '1', template: 'ERROR failed', eventId: 'E2' },
+      ];
       const result = evaluator.evaluate(parsed, gt);
       expect(result.ga).toBe(0);
       expect(result.pa).toBe(0);

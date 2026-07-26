@@ -1,7 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { unlinkSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 import { LogParserPipeline } from '../../src/pipeline/LogParserPipeline.js';
 
 describe('LogParserPipeline Persistence', () => {
@@ -28,47 +25,36 @@ describe('LogParserPipeline Persistence', () => {
     'Dec 10 07:28:50 LabSZ sshd[24250]: pam_unix(sshd:session): session opened for user admin by (uid=0)',
   ];
 
-  it('G6: round-trip save → load produces same template count', () => {
+  it('round-trip serialize → deserialize produces same template count', () => {
     const pipeline = new LogParserPipeline();
     pipeline.parseBatch(LOGS);
 
-    const stateFile = join(tmpdir(), `log-parser-test-${Date.now()}.json`);
-    pipeline.saveStateSync(stateFile);
-
-    const restored = LogParserPipeline.loadStateSync(stateFile);
-    // Restored pipeline has the same templates loaded from snapshot
+    const saved = pipeline.serializeState();
+    const restored = LogParserPipeline.deserialize(saved);
     expect(restored.stats.templateCount).toBeGreaterThan(0);
-    expect(restored.stats.templateCount).toBeLessThanOrEqual(pipeline.stats.templateCount);
+    expect(restored.stats.templateCount).toBe(pipeline.stats.templateCount);
 
-    // Parse new different logs through restored pipeline
     const newLogs = ['Brand new unique log message alpha', 'Brand new unique log message beta'];
-    const results = restored.parseBatch(newLogs);
-    expect(results.every((r) => r.template && r.templateId > 0)).toBe(true);
-
-    if (existsSync(stateFile)) unlinkSync(stateFile);
+    restored.parseBatch(newLogs);
+    expect(restored.stats.templateCount).toBeGreaterThan(pipeline.stats.templateCount);
   });
 
-  it('G6: restored pipeline continues correctly with new logs', () => {
+  it('restored pipeline continues correctly with new logs', () => {
     const pipeline = new LogParserPipeline();
     const firstHalf = LOGS.slice(0, 10);
     const secondHalf = LOGS.slice(10);
 
     pipeline.parseBatch(firstHalf);
+    const saved = pipeline.serializeState();
+    const restored = LogParserPipeline.deserialize(saved);
 
-    const stateFile = join(tmpdir(), `log-parser-test-${Date.now()}.json`);
-    pipeline.saveStateSync(stateFile);
-
-    const restored = LogParserPipeline.loadStateSync(stateFile);
-    const secondHalfResults = restored.parseBatch(secondHalf);
-
-    expect(secondHalfResults.every((r) => r.template)).toBe(true);
+    const results = restored.parseBatch(secondHalf);
+    expect(results.every((r) => !!r.template)).toBe(true);
     expect(restored.stats.totalProcessed).toBe(LOGS.length);
     expect(restored.stats.templateCount).toBeGreaterThan(0);
-
-    if (existsSync(stateFile)) unlinkSync(stateFile);
   });
 
-  it('G6: exportState produces valid serializable object', () => {
+  it('exportState produces valid serializable object', () => {
     const pipeline = new LogParserPipeline();
     pipeline.parseBatch(LOGS.slice(0, 5));
     const state = pipeline.exportState();
@@ -79,12 +65,8 @@ describe('LogParserPipeline Persistence', () => {
     expect(state.totalProcessed).toBe(5);
   });
 
-  it('G6: loadStateSync with no prior state creates fresh pipeline', () => {
-    const pipeline = LogParserPipeline.loadStateSync(
-      join(tmpdir(), `nonexistent-${Date.now()}.json`),
-    );
-    // Rejects due to file not found — acceptable for production usage
-    // In production, caller should check file existence first
+  it('deserialize with empty JSON creates fresh pipeline', () => {
+    const pipeline = LogParserPipeline.deserialize('{"version":"1.0.0","totalProcessed":0}');
     const result = pipeline.parseBatch(['new log message'])[0]!;
     expect(result.template).toBeDefined();
   });

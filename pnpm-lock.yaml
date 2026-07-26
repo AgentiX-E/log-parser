@@ -148,6 +148,7 @@ importers:
       '@agentix-e/log-parser-core':
         specifier: workspace:*
         version: link:../log-parser-core
+    devDependencies:
       '@mlc-ai/web-llm':
         specifier: ^0.2.0
         version: 0.2.84

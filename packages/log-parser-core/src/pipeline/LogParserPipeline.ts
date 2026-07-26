@@ -1,4 +1,3 @@
-import { writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { DrainDataPlane } from '../data/DrainDataPlane.js';
 import type { ILLMProvider } from '../llm/ILLMProvider.js';
 import type { IEmbeddingProvider } from '../embedding/IEmbeddingProvider.js';
@@ -357,25 +356,31 @@ export class LogParserPipeline {
     };
   }
 
-  /** Save pipeline state to a file. */
-  saveStateSync(filePath: string): void {
-    writeFileSync(filePath, JSON.stringify(this.exportState()), 'utf-8');
+  /** Export serializable pipeline state as a JSON string. */
+  serializeState(): string {
+    return JSON.stringify(this.exportState());
   }
 
   /**
-   * Restore a pipeline from a previously saved state file.
-   * The restored pipeline continues from where the original left off.
+   * Restore pipeline from a serialized state string.
+   * Platform-agnostic — works in Node.js and Browser.
    */
-  static loadStateSync(filePath: string, config?: LogParserPipelineConfig): LogParserPipeline {
-    const pipeline = new LogParserPipeline(config);
-    if (!existsSync(filePath)) return pipeline;
-    const raw = readFileSync(filePath, 'utf-8');
-    const state = JSON.parse(raw);
+  importState(json: string): void {
+    const state = JSON.parse(json);
     if (state.drainSnapshot && Array.isArray(state.drainSnapshot)) {
-      pipeline.drain.loadSnapshot(new Uint8Array(state.drainSnapshot));
+      this.drain.loadSnapshot(new Uint8Array(state.drainSnapshot));
     }
-    if (typeof state.totalProcessed === 'number') pipeline.totalProcessed = state.totalProcessed;
-    if (typeof state.nextLogId === 'number') pipeline.nextLogId = state.nextLogId;
+    if (typeof state.totalProcessed === 'number') this.totalProcessed = state.totalProcessed;
+    if (typeof state.nextLogId === 'number') this.nextLogId = state.nextLogId;
+  }
+
+  /**
+   * Create a new pipeline from a serialized state string.
+   * Platform-agnostic — works in Node.js and Browser.
+   */
+  static deserialize(json: string, config?: LogParserPipelineConfig): LogParserPipeline {
+    const pipeline = new LogParserPipeline(config);
+    pipeline.importState(json);
     return pipeline;
   }
 }

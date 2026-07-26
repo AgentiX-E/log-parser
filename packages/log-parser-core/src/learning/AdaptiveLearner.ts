@@ -141,6 +141,18 @@ export class AdaptiveLearner {
     this.underSplittingCount = 0;
   }
 
+  /** Human-readable insight into the learning state. */
+  get insight(): string {
+    if (this.corrections === 0) return 'No corrections yet.';
+    if (this.underSplittingCount > this.overSplittingCount) {
+      return 'Increase simTh to separate merged templates.';
+    }
+    if (this.overSplittingCount > this.underSplittingCount) {
+      return 'Decrease simTh to merge fragmented templates.';
+    }
+    return 'Current simTh appears balanced.';
+  }
+
   /**
    * Detect whether a correction indicates over-splitting or under-splitting.
    *

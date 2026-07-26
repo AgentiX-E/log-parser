@@ -28,5 +28,8 @@
   },
   "peerDependencies": {
     "@mlc-ai/web-llm": "^0.2.0"
+  },
+  "devDependencies": {
+    "@mlc-ai/web-llm": "^0.2.0"
   }
 }

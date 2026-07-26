@@ -1,13 +1,20 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { DatasetLoader } from '../../src/evaluation/DatasetLoader.js';
 import { LogParserPipeline } from '../../src/pipeline/LogParserPipeline.js';
 import { Evaluator } from '../../src/evaluation/Evaluator.js';
 
-describe('Real Benchmark — LogHub-2k SSH', () => {
-  const loader = new DatasetLoader();
+const FIXTURE_DIR = join(__dirname, '..', 'fixtures');
 
-  it('parses all 21 SSH logs without errors', () => {
-    const ds = loader.loadSync('ssh');
+function loadSSH() {
+  const csv = readFileSync(join(FIXTURE_DIR, 'loghub-2k-ssh.csv'), 'utf-8');
+  return DatasetLoader.parseCSV(csv, 'SSH');
+}
+
+describe('Real Benchmark — LogHub-2k SSH', () => {
+  it('parses all SSH logs without errors', () => {
+    const ds = loadSSH();
     const pipeline = new LogParserPipeline();
 
     for (const log of ds.logs) {
@@ -16,15 +23,13 @@ describe('Real Benchmark — LogHub-2k SSH', () => {
       expect(result.templateId).toBeGreaterThan(0);
     }
 
-    expect(pipeline.stats.totalProcessed).toBe(21);
-    // drain-ts should discover some templates (exact count depends on sim_th)
+    expect(pipeline.stats.totalProcessed).toBe(ds.logs.length);
     expect(pipeline.stats.templateCount).toBeGreaterThan(0);
-    expect(pipeline.stats.drainHits).toBeGreaterThanOrEqual(0);
   });
 
-  it('deterministic — 10 identical runs produce identical metrics', () => {
+  it('deterministic — 5 identical runs produce identical metrics', () => {
     const run = () => {
-      const ds = loader.loadSync('ssh');
+      const ds = loadSSH();
       const pipeline = new LogParserPipeline();
       const evaluator = new Evaluator();
       const parsed = ds.logs.map((log, i) => {
@@ -43,7 +48,7 @@ describe('Real Benchmark — LogHub-2k SSH', () => {
   });
 
   it('evaluator produces all 7 metrics in valid [0,1] range', () => {
-    const ds = loader.loadSync('ssh');
+    const ds = loadSSH();
     const pipeline = new LogParserPipeline();
     const evaluator = new Evaluator();
 
@@ -56,6 +61,8 @@ describe('Real Benchmark — LogHub-2k SSH', () => {
 
     expect(metrics.ga).toBeGreaterThanOrEqual(0);
     expect(metrics.ga).toBeLessThanOrEqual(1);
+    expect(metrics.fga).toBeGreaterThanOrEqual(0);
+    expect(metrics.fga).toBeLessThanOrEqual(1);
     expect(metrics.pa).toBeGreaterThanOrEqual(0);
     expect(metrics.pa).toBeLessThanOrEqual(1);
     expect(metrics.pta).toBeGreaterThanOrEqual(0);
@@ -66,7 +73,5 @@ describe('Real Benchmark — LogHub-2k SSH', () => {
     expect(metrics.fta).toBeLessThanOrEqual(1);
     expect(metrics.ned).toBeGreaterThanOrEqual(0);
     expect(metrics.ned).toBeLessThanOrEqual(1);
-    expect(metrics.fga).toBeGreaterThanOrEqual(0);
-    expect(metrics.fga).toBeLessThanOrEqual(1);
   });
 });
