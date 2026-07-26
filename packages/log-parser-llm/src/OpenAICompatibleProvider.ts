@@ -1,4 +1,4 @@
-import { generateObject } from 'ai';
+import { generateObject, generateText } from 'ai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { z } from 'zod';
 import type { ILLMProvider, LlmTemplateResult } from '@agentix-e/log-parser-core';
@@ -137,31 +137,64 @@ export class OpenAICompatibleProvider implements ILLMProvider {
    */
   async extractTemplate(logSamples: readonly string[]): Promise<LlmTemplateResult> {
     if (logSamples.length === 0) {
-      return {
-        template: '',
-        variables: [],
-        confidence: 0,
-      };
+      return { template: '', variables: [], confidence: 0 };
     }
 
-    const result = await generateObject({
+    const prompt = PromptBuilder.build(logSamples);
+
+    // Try structured output first (supported by OpenAI, etc.)
+    try {
+      const result = await generateObject({
+        model: this.model,
+        schema: templateResultSchema,
+        system: PromptBuilder.SYSTEM_PROMPT,
+        prompt,
+        temperature: 0,
+      });
+
+      return {
+        template: result.object.template,
+        variables: result.object.variables,
+        confidence: result.object.confidence,
+        usage: result.usage
+          ? {
+              promptTokens: result.usage.promptTokens,
+              completionTokens: result.usage.completionTokens,
+            }
+          : undefined,
+      };
+    } catch {
+      // Fallback: use generateText + manual JSON parsing
+      // (needed for providers like DeepSeek that don't support structured outputs)
+    }
+
+    const textResult = await generateText({
       model: this.model,
-      schema: templateResultSchema,
-      system: PromptBuilder.SYSTEM_PROMPT,
-      prompt: PromptBuilder.build(logSamples),
+      system: PromptBuilder.SYSTEM_PROMPT + '\nRespond ONLY with a valid JSON object.',
+      prompt,
       temperature: 0,
     });
 
-    return {
-      template: result.object.template,
-      variables: result.object.variables,
-      confidence: result.object.confidence,
-      usage: result.usage
-        ? {
-            promptTokens: result.usage.promptTokens,
-            completionTokens: result.usage.completionTokens,
-          }
-        : undefined,
-    };
+    const jsonMatch = textResult.text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return { template: textResult.text.trim(), variables: [], confidence: 0.7 };
+    }
+
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        template: parsed.template ?? textResult.text.trim(),
+        variables: Array.isArray(parsed.variables) ? parsed.variables : [],
+        confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.7,
+        usage: textResult.usage
+          ? {
+              promptTokens: textResult.usage.promptTokens,
+              completionTokens: textResult.usage.completionTokens,
+            }
+          : undefined,
+      };
+    } catch {
+      return { template: textResult.text.trim(), variables: [], confidence: 0.5 };
+    }
   }
 }

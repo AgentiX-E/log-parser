@@ -113,6 +113,19 @@ export async function createServer(config: ServerConfig = {}): Promise<ServerIns
     };
   });
 
+  // Graceful shutdown handlers
+  const shutdown = async (signal: string) => {
+    fastify.log.info(`Received ${signal}, shutting down gracefully...`);
+    try {
+      await fastify.close();
+    } finally {
+      process.exit(0);
+    }
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+
   return {
     fastify,
     async start() {

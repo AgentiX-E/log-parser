@@ -24,7 +24,8 @@ Rules:
    - Hostnames → <HOSTNAME>
    - Unclassified variables → <*>
 4. Output the template enclosed in <TEMPLATE> tags.
-5. List each variable with its position and type.`;
+5. List each variable with its position and type.
+6. Respond with valid JSON matching the requested schema.`;
 
   /**
    * Build a NER-style prompt for log template extraction.
