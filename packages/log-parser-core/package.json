@@ -27,7 +27,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@agentix-e/drain-ts": "^1.0.1"
+    "@agentix-e/drain-ts": "^1.1.0"
   },
   "optionalDependencies": {
     "franc-min": "^6.0.0",

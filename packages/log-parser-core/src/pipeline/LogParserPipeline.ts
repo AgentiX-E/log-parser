@@ -1,4 +1,4 @@
-import { DrainDataPlane } from '../data/DrainDataPlane.js';
+import { DrainDataPlane, type DrainDataPlaneConfig } from '../data/DrainDataPlane.js';
 import type { ILLMProvider } from '../llm/ILLMProvider.js';
 import type { IEmbeddingProvider } from '../embedding/IEmbeddingProvider.js';
 import type { MultiLangTokenizer } from '../preprocessing/MultiLangTokenizer.js';
@@ -37,6 +37,13 @@ export interface LogParserPipelineConfig {
   readonly adapter?: LogInputAdapter;
   /** Pre-configured variable type classifier (optional). */
   readonly classifier?: VariableTypeClassifier;
+  /**
+   * Drain engine configuration (drain-ts v1.1.0+).
+   *
+   * Controls engine selection (Drain vs JaccardDrain), extended masking,
+   * AEL similarity merging, adjacent fusion, and other low-level parameters.
+   */
+  readonly drain?: DrainDataPlaneConfig;
 }
 
 /**
@@ -106,7 +113,7 @@ export class LogParserPipeline {
       ...defaultPipelineConfig(),
       ...pipelineConfig.layers,
     };
-    this.drain = new DrainDataPlane();
+    this.drain = new DrainDataPlane(pipelineConfig.drain ?? {});
 
     // Wire control plane when LLM provider is injected
     if (this.llmProvider) {

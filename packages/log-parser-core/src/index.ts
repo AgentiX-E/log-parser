@@ -26,7 +26,11 @@ export { defaultPipelineConfig } from './pipeline/types.js';
 export { LogParserPipeline, type LogParserPipelineConfig } from './pipeline/LogParserPipeline.js';
 
 // ── Data plane ──
-export { DrainDataPlane } from './data/DrainDataPlane.js';
+export {
+  DrainDataPlane,
+  type DrainDataPlaneConfig,
+  type DrainEngineType,
+} from './data/DrainDataPlane.js';
 
 // ── Classifier ──
 export {

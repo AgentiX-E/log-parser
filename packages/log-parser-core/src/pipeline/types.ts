@@ -52,10 +52,12 @@ export interface PipelineLayerConfig {
   readonly dataPlane: {
     readonly enabled: boolean;
     readonly drain?: {
+      readonly engine: string;
       readonly simTh: number;
       readonly depth: number;
       readonly maxChildren: number;
       readonly maxClusters: number | null;
+      readonly extendedMasking: boolean;
     };
   };
   readonly controlPlane: {
@@ -105,7 +107,14 @@ export function defaultPipelineConfig(): PipelineLayerConfig {
   return {
     dataPlane: {
       enabled: true,
-      drain: { simTh: 0.4, depth: 4, maxChildren: 100, maxClusters: null },
+      drain: {
+        engine: 'Drain',
+        simTh: 0.4,
+        depth: 4,
+        maxChildren: 100,
+        maxClusters: null,
+        extendedMasking: false,
+      },
     },
     controlPlane: {
       enabled: false,

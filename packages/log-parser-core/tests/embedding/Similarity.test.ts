@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { cosineSimilarity, cosineDistance, jaccardSimilarity } from '../../src/embedding/Similarity.js';
+import {
+  cosineSimilarity,
+  cosineDistance,
+  jaccardSimilarity,
+} from '../../src/embedding/Similarity.js';
 
 describe('cosineSimilarity', () => {
   it('should return 1 for identical vectors', () => {
