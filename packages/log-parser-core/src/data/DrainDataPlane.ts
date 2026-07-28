@@ -31,44 +31,60 @@ export interface DrainDataPlaneConfig {
   /** Max clusters (LRU eviction). null = unlimited. Default: null. */
   readonly maxClusters?: number | null;
   /**
-   * Use extended masking instructions.
-   * Includes PATH, HOST_PORT, BLOCK_ID, SYSLOG_NUM in addition to IP/NUM/HEX/UUID/EMAIL.
-   * Default: false.
+   * Use extended masking instructions (PATH, HOST_PORT, BLOCK_ID, SYSLOG_NUM).
+   * Default: false. Ignored when disableMasking is true.
    */
   readonly extendedMasking?: boolean;
   /**
+   * Disable ALL masking instructions. Used for datasets where masking
+   * causes over-generalization (OpenStack, Proxifier per drain-ts benchmarks).
+   * Default: false.
+   */
+  readonly disableMasking?: boolean;
+  /**
    * Enable AEL-style diff-ratio similarity for post-training cluster merge.
-   * When true, similar clusters are reconciled after training completes.
    * Default: false.
    */
   readonly enableAELSimilarity?: boolean;
   /**
+   * Maximum diff ratio for AEL similarity comparison. Default: 0.35.
+   */
+  readonly maxDiffRatio?: number;
+  /**
    * Enable adjacent constant token fusion via TokenNormalizer.
-   * Automatically detects and fuses constant adjacent tokens
-   * (e.g., "bytes", "4096", "sent" → may be fused to reduce fragmentation).
    * Default: false.
    */
   readonly enableAdjacentFusion?: boolean;
   /**
    * Enable param-count binning in the prefix tree root layer.
-   * Groups messages with the same parameter count together.
    * Default: false (Drain3-compatible behavior).
    */
   readonly enableParamBinning?: boolean;
   /**
    * Enable affix-preserving parameterization.
-   * Tokens with common prefixes/suffixes are parameterized in the middle
-   * rather than replaced entirely (e.g., "bytes4096sent" → "bytes<*>sent").
+   * Tokens with common prefixes/suffixes keep those affixes (e.g., "bytes4096sent" → "bytes<*>sent").
    * Default: false.
    */
   readonly enableAffixPreserving?: boolean;
   /**
-   * Enable post-training cluster merge pipeline.
-   * When true, ClusterMergePipeline is applied after all messages
-   * are processed to merge clusters representing the same template.
-   * Default: false.
+   * Enable post-training cluster merge. Default: false.
    */
   readonly enableClusterMerge?: boolean;
+  /**
+   * Cluster merge percent threshold (0-1). Default: 0.4.
+   */
+  readonly clusterMergePercent?: number;
+  /**
+   * Extra delimiters for Drain tokenization (e.g., [","] for Proxifier).
+   */
+  readonly drainExtraDelimiters?: readonly string[];
+  /**
+   * Regex collapse patterns for token-level normalization before clustering.
+   */
+  readonly regexCollapsePatterns?: ReadonlyArray<{
+    readonly regex: string;
+    readonly replacement: string;
+  }>;
   /**
    * Optional preprocessor function applied to every log message BEFORE
    * masking and Drain clustering.
@@ -83,7 +99,9 @@ export interface DrainDataPlaneConfig {
  * expanded configuration surface.
  */
 function buildDrainConfig(config: DrainDataPlaneConfig): TemplateMinerConfig {
-  const masking = config.extendedMasking ? ENHANCED_MASKING_INSTRUCTIONS : DEFAULT_MASKING_INSTRUCTIONS;
+  const masking = config.disableMasking
+    ? []
+    : (config.extendedMasking ? ENHANCED_MASKING_INSTRUCTIONS : DEFAULT_MASKING_INSTRUCTIONS);
 
   return TemplateMinerConfig.from({
     simTh: config.simTh ?? 0.4,
@@ -92,11 +110,18 @@ function buildDrainConfig(config: DrainDataPlaneConfig): TemplateMinerConfig {
     maxClusters: config.maxClusters ?? null,
     maskingInstructions: masking,
     engine: config.engine ?? 'Drain',
+    drainExtraDelimiters: config.drainExtraDelimiters ?? [],
     enableAELSimilarity: config.enableAELSimilarity ?? false,
+    maxDiffRatio: config.maxDiffRatio ?? 0.35,
     enableAdjacentFusion: config.enableAdjacentFusion ?? false,
     enableParamBinning: config.enableParamBinning ?? false,
     enableAffixPreserving: config.enableAffixPreserving ?? false,
     enableClusterMerge: config.enableClusterMerge ?? false,
+    clusterMergePercent: config.clusterMergePercent ?? 0.4,
+    regexCollapsePatterns: (config.regexCollapsePatterns ?? []).map(p => ({
+      regex: new RegExp(p.regex),
+      replacement: p.replacement,
+    })),
     preprocessor: config.preprocessor,
   });
 }
