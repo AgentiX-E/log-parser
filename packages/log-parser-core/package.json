@@ -32,7 +32,7 @@
   "optionalDependencies": {
     "franc-min": "^6.0.0",
     "natural": "^8.0.0",
-    "nodejieba": "^2.6.0",
+    "nodejieba": "^3.5.8",
     "kuromoji": "^0.1.2"
   }
 }
