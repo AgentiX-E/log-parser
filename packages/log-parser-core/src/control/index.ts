@@ -6,3 +6,5 @@ export { SelfReflectionLoop } from './SelfReflectionLoop.js';
 export { PromptBuilder } from './PromptBuilder.js';
 export { ModelRouter } from './ModelRouter.js';
 export { PostProcessor } from './PostProcessor.js';
+export { SynLogTemplateRefiner } from './SynLogTemplateRefiner.js';
+export type { RefinementInput, RefinementResult } from './SynLogTemplateRefiner.js';

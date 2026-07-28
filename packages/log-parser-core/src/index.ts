@@ -89,6 +89,8 @@ export { AdaptiveLearner } from './learning/AdaptiveLearner.js';
 export { PromptBuilder } from './control/PromptBuilder.js';
 export { ModelRouter } from './control/ModelRouter.js';
 export { PostProcessor } from './control/PostProcessor.js';
+export { SynLogTemplateRefiner } from './control/SynLogTemplateRefiner.js';
+export type { RefinementInput, RefinementResult } from './control/SynLogTemplateRefiner.js';
 
 // ── Granularity ──
 export { GranularityDistance, GranularityCalibrator } from './granularity/index.js';

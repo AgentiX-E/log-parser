@@ -15,16 +15,10 @@ export const HOSTNAME_MASK = new MaskingInstruction(
 );
 
 /** Bare hex strings (8+ hex chars, with or without 0x prefix) — critical for Proxifier. */
-export const BARE_HEX_MASK = new MaskingInstruction(
-  String.raw`\b(?:0x)?[0-9a-fA-F]{8,}\b`,
-  'HEX',
-);
+export const BARE_HEX_MASK = new MaskingInstruction(String.raw`\b(?:0x)?[0-9a-fA-F]{8,}\b`, 'HEX');
 
 /** UUIDs without dashes. */
-export const UUID_NODASH_MASK = new MaskingInstruction(
-  String.raw`\b[0-9a-fA-F]{32}\b`,
-  'UUID',
-);
+export const UUID_NODASH_MASK = new MaskingInstruction(String.raw`\b[0-9a-fA-F]{32}\b`, 'UUID');
 
 /** Combined enhanced masking instructions. */
 export const ENHANCED_MASKING_INSTRUCTIONS: readonly MaskingInstruction[] = [

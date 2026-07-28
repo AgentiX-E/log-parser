@@ -101,7 +101,9 @@ export interface DrainDataPlaneConfig {
 function buildDrainConfig(config: DrainDataPlaneConfig): TemplateMinerConfig {
   const masking = config.disableMasking
     ? []
-    : (config.extendedMasking ? ENHANCED_MASKING_INSTRUCTIONS : DEFAULT_MASKING_INSTRUCTIONS);
+    : config.extendedMasking
+      ? ENHANCED_MASKING_INSTRUCTIONS
+      : DEFAULT_MASKING_INSTRUCTIONS;
 
   return TemplateMinerConfig.from({
     simTh: config.simTh ?? 0.4,
@@ -118,7 +120,7 @@ function buildDrainConfig(config: DrainDataPlaneConfig): TemplateMinerConfig {
     enableAffixPreserving: config.enableAffixPreserving ?? false,
     enableClusterMerge: config.enableClusterMerge ?? false,
     clusterMergePercent: config.clusterMergePercent ?? 0.4,
-    regexCollapsePatterns: (config.regexCollapsePatterns ?? []).map(p => ({
+    regexCollapsePatterns: (config.regexCollapsePatterns ?? []).map((p) => ({
       regex: new RegExp(p.regex),
       replacement: p.replacement,
     })),
