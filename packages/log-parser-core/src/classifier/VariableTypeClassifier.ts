@@ -23,10 +23,10 @@ export class VariableTypeClassifier {
   }> = [
     { type: 'IP', regex: /^(\d{1,3}\.){3}\d{1,3}$/ },
     { type: 'NUM', regex: /^-?\d+\.?\d*$/ },
-    { type: 'HEX', regex: /^0x[0-9a-fA-F]+$/ },
+    { type: 'HEX', regex: /^(?:0x)?[0-9a-fA-F]{6,}$/ },
     {
       type: 'UUID',
-      regex: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      regex: /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-fA-F]{32})$/i,
     },
     { type: 'EMAIL', regex: /^[\w.+-]+@[\w-]+\.[\w.-]+$/ },
   ];

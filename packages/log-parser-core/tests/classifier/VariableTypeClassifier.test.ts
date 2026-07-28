@@ -20,8 +20,11 @@ describe('VariableTypeClassifier', () => {
   });
 
   describe('Hex values', () => {
-    it.each(['0xdeadbeef', '0xFF', '0x0', '0x123abc'])('classifies %s as HEX', (token) => {
+    it.each(['0xdeadbeef', '0x123abc', '0x1a2b3c4d', 'deadbeef', 'a1b2c3d4e5f6'])('classifies %s as HEX', (token) => {
       expect(classifier.classify(token).type).toBe('HEX');
+    });
+    it('classifies short bare hex as GENERIC', () => {
+      expect(classifier.classify('FF').type).toBe('GENERIC');
     });
   });
 

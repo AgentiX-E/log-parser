@@ -4,9 +4,9 @@ import {
   LogCluster,
   JaccardDrain,
   DEFAULT_MASKING_INSTRUCTIONS,
-  ALL_MASKING_INSTRUCTIONS,
   type ExtractedParameter,
 } from '@agentix-e/drain-ts';
+import { ENHANCED_MASKING_INSTRUCTIONS } from '../masking/EnhancedMasking.js';
 import type { DrainResult, DrainMatch } from '../pipeline/types.js';
 
 /** Available Drain algorithm variants from drain-ts v1.1.0. */
@@ -83,7 +83,7 @@ export interface DrainDataPlaneConfig {
  * expanded configuration surface.
  */
 function buildDrainConfig(config: DrainDataPlaneConfig): TemplateMinerConfig {
-  const masking = config.extendedMasking ? ALL_MASKING_INSTRUCTIONS : DEFAULT_MASKING_INSTRUCTIONS;
+  const masking = config.extendedMasking ? ENHANCED_MASKING_INSTRUCTIONS : DEFAULT_MASKING_INSTRUCTIONS;
 
   return TemplateMinerConfig.from({
     simTh: config.simTh ?? 0.4,

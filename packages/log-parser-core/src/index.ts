@@ -32,6 +32,14 @@ export {
   type DrainEngineType,
 } from './data/DrainDataPlane.js';
 
+// ── Masking ──
+export {
+  ENHANCED_MASKING_INSTRUCTIONS,
+  HOSTNAME_MASK,
+  BARE_HEX_MASK,
+  UUID_NODASH_MASK,
+} from './masking/EnhancedMasking.js';
+
 // ── Classifier ──
 export {
   VariableTypeClassifier,
