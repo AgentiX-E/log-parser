@@ -291,11 +291,7 @@ export class SynLogTemplateRefiner {
    * @param long  - Tokens from the longer/anonymized log
    * @param drainTemplate - The original Drain cluster template for reference
    */
-  private extractTemplate(
-    short: string[],
-    long: string[],
-    drainTemplate: string,
-  ): string {
+  private extractTemplate(short: string[], long: string[], drainTemplate: string): string {
     const template: string[] = [];
     let lastIdx = -1;
 
@@ -442,10 +438,7 @@ export class SynLogTemplateRefiner {
       h1 = Math.imul(h1 ^ ch, 0x85ebca6b);
       h2 = Math.imul(h2 ^ ch, 0xc2b2ae35);
     }
-    return (
-      (h1 >>> 0).toString(16).padStart(8, '0') +
-      (h2 >>> 0).toString(16).padStart(8, '0')
-    );
+    return (h1 >>> 0).toString(16).padStart(8, '0') + (h2 >>> 0).toString(16).padStart(8, '0');
   }
 
   /**
