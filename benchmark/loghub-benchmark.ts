@@ -502,75 +502,102 @@ async function refineClusterWithDeepSeek(
   drainTemplate: string,
   sampleCount: number,
   apiKey: string,
-): Promise<{ template: string; confidence: number; tokensConsumed: number }> {
+  domain?: string,
+  maxSelfReflect?: number,
+): Promise<{ template: string; confidence: number; tokensConsumed: number; iterations: number }> {
   // Select up to sampleCount representative logs from the cluster
   const samples = clusterLogs.length <= sampleCount
     ? [...clusterLogs]
     : clusterLogs.filter((_, i) => i % Math.ceil(clusterLogs.length / sampleCount) < 1).slice(0, sampleCount);
 
   if (samples.length === 0) {
-    return { template: drainTemplate, confidence: 0, tokensConsumed: 0 };
+    return { template: drainTemplate, confidence: 0, tokensConsumed: 0, iterations: 0 };
   }
 
-  const prompt = PromptBuilder.build(samples);
+  // Use few-shot examples when domain provides them
+  const prompt = PromptBuilder.buildWithExamples(samples, domain);
   const systemPrompt = PromptBuilder.SYSTEM_PROMPT + "\nRespond ONLY with a valid JSON object.";
 
-  const body = JSON.stringify({
-    model: "deepseek-chat",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: prompt },
-    ],
-    temperature: 0,
-    max_tokens: 2048,
-  });
+  let currentTemplate = drainTemplate;
+  let totalTokens = 0;
+  let bestConfidence = 0;
+  const maxIterations = maxSelfReflect ?? 1;
+  let iterations = 0;
 
-  const response = await fetch("https://api.deepseek.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body,
-  });
+  for (let iter = 0; iter < maxIterations; iter++) {
+    iterations = iter + 1;
 
-  if (!response.ok) {
-    const errText = await response.text().catch(() => "");
-    throw new Error(`DeepSeek API error ${response.status}: ${errText.slice(0, 200)}`);
-  }
+    const body = JSON.stringify({
+      model: "deepseek-chat",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0,
+      max_tokens: 2048,
+    });
 
-  const data = await response.json() as {
-    choices?: Array<{ message?: { content?: string } }>;
-    usage?: { total_tokens?: number; prompt_tokens?: number; completion_tokens?: number };
-  };
+    const response = await fetch("https://api.deepseek.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body,
+    });
 
-  const tokens = data.usage?.total_tokens ?? 0;
-  const content = data.choices?.[0]?.message?.content ?? "";
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "");
+      throw new Error(`DeepSeek API error ${response.status}: ${errText.slice(0, 200)}`);
+    }
 
-  // Parse JSON from the response
-  const jsonMatch = content.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    return { template: drainTemplate, confidence: 0, tokensConsumed: tokens };
-  }
-
-  try {
-    const parsed = JSON.parse(jsonMatch[0]) as { template?: string; confidence?: number };
-    let template: string = parsed.template ?? drainTemplate;
-
-    // Strip <TEMPLATE> wrapper tags injected by PromptBuilder's SYSTEM_PROMPT
-    template = template.replace(/<\/?TEMPLATE>/g, "").trim();
-    // Strip [<NUM>] prefix artifact from PromptBuilder sample numbering ([1], [2], ...)
-    template = template.replace(/^\[<NUM>\]\s*/, "");
-
-    const confidence: number = typeof parsed.confidence === "number" ? parsed.confidence : 0.5;
-    return {
-      template: template.length > 0 ? template : drainTemplate,
-      confidence,
-      tokensConsumed: tokens,
+    const data = await response.json() as {
+      choices?: Array<{ message?: { content?: string } }>;
+      usage?: { total_tokens?: number; prompt_tokens?: number; completion_tokens?: number };
     };
-  } catch {
-    return { template: drainTemplate, confidence: 0.5, tokensConsumed: tokens };
+
+    totalTokens += data.usage?.total_tokens ?? 0;
+    const content = data.choices?.[0]?.message?.content ?? "";
+
+    // Parse JSON from the response
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) continue;
+
+    try {
+      const parsed = JSON.parse(jsonMatch[0]) as { template?: string; confidence?: number };
+      let template: string = parsed.template ?? drainTemplate;
+
+      // Strip <TEMPLATE> wrapper tags injected by PromptBuilder's SYSTEM_PROMPT
+      template = template.replace(/<\/?TEMPLATE>/g, "").trim();
+      // Strip [<NUM>] prefix artifact from PromptBuilder sample numbering ([1], [2], ...)
+      template = template.replace(/^\[<NUM>\]\s*/, "");
+
+      const confidence: number = typeof parsed.confidence === "number" ? parsed.confidence : 0.5;
+      if (template.length > 0) currentTemplate = template;
+      if (confidence > bestConfidence) bestConfidence = confidence;
+
+      // Self-reflection: verify template against all samples. If all match, stop.
+      if (iter < maxIterations - 1) {
+        const allMatch = samples.every((log) => {
+          const regex = new RegExp("^" + currentTemplate
+            .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+            .replace(/<[^>]*>/g, '\\S+')
+            .replace(/\\s\+/g, '\\s+') + "$");
+          return regex.test(log);
+        });
+        if (allMatch) break;
+      }
+    } catch {
+      // JSON parse failure — continue to next iteration
+    }
   }
+
+  return {
+    template: currentTemplate.length > 0 ? currentTemplate : drainTemplate,
+    confidence: bestConfidence,
+    tokensConsumed: totalTokens,
+    iterations,
+  };
 }
 
 async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
@@ -626,9 +653,12 @@ async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
     if (!apiKey) throw new Error("DEEPSEEK_API_KEY not set — required for LLM-enhanced datasets");
 
     const sampleCount = 5;
+    const isHardDataset = ["OpenStack", "Android", "Thunderbird", "Proxifier"].includes(ds.name);
+    const maxSelfReflect = isHardDataset ? 5 : 3;
 
     // Process clusters sequentially with a small delay to respect rate limits
     const delayMs = 50; // 50ms between API calls (~20 QPS, well within DeepSeek limits)
+    let totalIterations = 0;
     for (const templateId of drainTemplateIds) {
       const cluster = clusterGroups.get(templateId)!;
       llmCalls++;
@@ -638,9 +668,12 @@ async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
         cluster.template,
         sampleCount,
         apiKey,
+        ds.name.toLowerCase(),
+        maxSelfReflect,
       );
 
       llmTokens += refined.tokensConsumed;
+      totalIterations += refined.iterations;
       templateIdToRefined.set(templateId, refined.template);
       if (refined.template !== cluster.template) changedCount++;
 
