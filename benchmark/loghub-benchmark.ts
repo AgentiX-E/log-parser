@@ -391,7 +391,7 @@ function evaluate(groundTruth: GroundTruthEntry[], parsed: ParsedEntry[]): Evalu
       if (j < gtTok.length && j < pTok.length) {
         const g = gtTok[j]!;
         const p = pTok[j]!;
-        if (g === p || (isMaskedToken(g) && isMaskedToken(p))) { matchCount++; ftaMatches++; }
+        if (g === p) { matchCount++; ftaMatches++; }
       }
     }
     ptaMatches += matchCount;
