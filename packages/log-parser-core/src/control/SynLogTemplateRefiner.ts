@@ -119,6 +119,13 @@ export class SynLogTemplateRefiner {
       return { refinedTemplate: drainTemplate, changed: false };
     }
 
+    // Guard: skip if drain template already matches all group members.
+    // Prevent over-correction on datasets where drain-ts already achieves
+    // near-perfect templates (Spark, Zookeeper, Mac, Apache).
+    if (this.templateMatchesAllLogs(drainTemplate, logs)) {
+      return { refinedTemplate: drainTemplate, changed: false };
+    }
+
     // Step a: Sample 2 unique, representative log messages
     const unique = [...new Set(logs)];
     const samples = unique.slice(0, 2);
@@ -398,5 +405,24 @@ export class SynLogTemplateRefiner {
     }
 
     return result;
+  }
+
+  /**
+   * Check if a drain template matches all log messages in a group.
+   * Returns true if every non-<*> constant token in the template
+   * appears in every group member — meaning the template is correct
+   * and refinement would be counterproductive.
+   */
+  private templateMatchesAllLogs(template: string, logs: readonly string[]): boolean {
+    // Extract constant (non-<*>) tokens
+    const tokens = template.split(/<[^>]*>/).flatMap(s => s.match(/\S+/g) ?? []);
+    if (tokens.length === 0) return false;
+
+    for (const log of logs) {
+      for (const token of tokens) {
+        if (!log.includes(token)) return false;
+      }
+    }
+    return true;
   }
 }
