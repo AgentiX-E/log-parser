@@ -56,6 +56,12 @@ Rules:
       'Example: "fpr0=0x9da6d7a9 bfb97649 00000000 40cb7380"',
       'Template: fpr0=<HEX> <HEX> <HEX> <HEX>',
     ],
+    windows: [
+      'Example: "Service_Control_Manager 7036 The Windows Update service entered the running state"',
+      'Template: Service_Control_Manager <NUM> The <*> service entered the <*> state',
+      'Example: "Microsoft-Windows-Security-Auditing 4624 An account was successfully logged on Subject: S-1-5-18"',
+      'Template: <*> <NUM> An account was successfully logged on Subject: <*>',
+    ],
   };
 
   /**
