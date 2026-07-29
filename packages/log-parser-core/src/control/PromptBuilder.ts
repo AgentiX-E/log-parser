@@ -39,10 +39,10 @@ Rules:
       'Template: POST /v2/<UUID>/servers HTTP/1.1 status: <NUM> len: <NUM> time: <NUM>',
     ],
     android: [
-      'Example: "com.android.systemui E/StatusBar: notification error id=12345"',
-      'Template: <*> E/<*>: notification error id=<NUM>',
-      'Example: "com.android.phone D/InCall: incoming call from 1234567890"',
-      'Template: <*> D/<*>: incoming call from <NUM>',
+      'Example: "acquire lock=233570404, flags=0x1, tag=\\"View Lock\\", name=com.android.systemui, ws=null, uid=10037, pid=2227"',
+      'Template: acquire lock=<*>, flags=<*>, tag="<*>", name=<*>, ws=<*>, uid=<*>, pid=<*>',
+      'Example: "Skipping AppWindowToken{df0798e token=Token{78af589 ActivityRecord{3b04890 u0 com.tencent.qt.qtl/com.tencent.video.player.activity.PlayerActivity t761}}} -- going to hide"',
+      'Template: Skipping AppWindowToken{<*> token=Token{<*> ActivityRecord{<*> u0 <*>}}} -- going to hide',
     ],
     proxifier: [
       'Example: "10.0.0.1:8080 open through proxy proxy.local:3128 TCP"',
@@ -57,10 +57,10 @@ Rules:
       'Template: fpr0=<HEX> <HEX> <HEX> <HEX>',
     ],
     windows: [
-      'Example: "Service_Control_Manager 7036 The Windows Update service entered the running state"',
-      'Template: Service_Control_Manager <NUM> The <*> service entered the <*> state',
-      'Example: "Microsoft-Windows-Security-Auditing 4624 An account was successfully logged on Subject: S-1-5-18"',
-      'Template: <*> <NUM> An account was successfully logged on Subject: <*>',
+      'Example: "Loaded Servicing Stack v6.1.7601.23505 with Core: C:\\Windows\\winsxs\\abc\\cbscore.dll"',
+      'Template: Loaded Servicing Stack <*> with Core: <PATH>\\cbscore.dll',
+      'Example: "00000001@2016/9/27:20:30:31.455 WcpInitialize (wcp.dll version 0.0.0.6) called (stack @0x7fed806eb5d)"',
+      'Template: <HEX>@<*> WcpInitialize (wcp.dll version <NUM>) called (stack @<HEX>)',
     ],
   };
 
