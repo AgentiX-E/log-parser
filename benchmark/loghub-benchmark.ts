@@ -619,18 +619,13 @@ async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
 
   const drain = new DrainDataPlane(config);
 
-  // Phase 1: Train Drain on all messages
-  for (let i = 0; i < messages.length; i++) {
-    drain.train(messages[i]!);
-  }
-
-  drain.mergeClusters();
-
-  // Phase 2: Collect Drain results and cluster assignments
+  // Phase 1: Train Drain on all messages (single pass, matching drain-ts benchmark)
   const drainResults: DrainResult[] = [];
   for (let i = 0; i < messages.length; i++) {
     drainResults.push(drain.train(messages[i]!));
   }
+
+  drain.mergeClusters();
 
   // Build Drain ParsedEntry[]
   const parsedDrain: ParsedEntry[] = drainResults.map(r => ({
