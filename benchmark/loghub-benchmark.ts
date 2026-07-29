@@ -84,6 +84,7 @@ const DATASETS: DatasetDescriptor[] = [
     category: "Distributed Systems",
     targetGA: 0.910,
     targetPTA: 0.750,
+    skipRefinement: true,
   },
   {
     name: "OpenStack",
@@ -102,6 +103,7 @@ const DATASETS: DatasetDescriptor[] = [
     category: "Distributed Systems",
     targetGA: 0.980,
     targetPTA: 0.800,
+    skipRefinement: true,
   },
   {
     name: "BGL",
@@ -144,6 +146,7 @@ const DATASETS: DatasetDescriptor[] = [
     category: "Operating Systems",
     targetGA: 0.850,
     targetPTA: 0.750,
+    skipRefinement: true,
   },
   {
     name: "Apache",
