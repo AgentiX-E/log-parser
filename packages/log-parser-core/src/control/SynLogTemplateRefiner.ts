@@ -119,17 +119,22 @@ export class SynLogTemplateRefiner {
       return { refinedTemplate: drainTemplate, changed: false };
     }
 
-    // Step a: Sample 2 unique, representative log messages (ORIGINAL, not anonymized)
+    // Step a: Sample 2 unique, representative log messages
     const unique = [...new Set(logs)];
     const samples = unique.slice(0, 2);
 
-    // Step b: Tokenize ORIGINAL (non-anonymized) samples.
-    // CRITICAL: Compare raw samples BEFORE anonymization to preserve
-    // Drain-identified constants (e.g., "node-01" that would match a hostname regex).
-    const tokenized = samples.map((log) => this.tokenize(log));
+    // Step b: Anonymize with regex FIRST, then number anonymize.
+    // This matches the original SynLogPlus Python at DrainPlus.py lines 605-610.
+    // Python: anonymize_with_regex → anonymize_numbers → tokenize
+    const anonymized = samples.map((log) => this.anonymizeWithRegex(log));
+    const anonymizedNums = anonymized.map((log) => this.anonymizeNumbers(log));
 
-    // Step c: Extract template from ORIGINAL tokens.
-    // Constants = tokens present in both samples in the same sequential order.
+    // Step c: Tokenize anonymized samples
+    const tokenized = anonymizedNums.map((log) => this.tokenize(log));
+
+    // Step d: Extract template by comparing anonymized tokenized samples.
+    // Variable patterns (numbers, IPs, etc.) are already <*> in both →
+    // they match as variables. Constants survive comparison.
     let template: string;
     if (tokenized.length === 1) {
       template = this.refineSingle(tokenized[0]!);
@@ -137,13 +142,7 @@ export class SynLogTemplateRefiner {
       template = this.extractTemplate(tokenized[0]!, tokenized[1]!, drainTemplate);
     }
 
-    // Step d: Anonymize only VARIABLE positions in the extracted template.
-    // This preserves constants that Drain correctly identified, while
-    // still catching variable tokens through regex/heuristic patterns.
-    template = this.anonymizeTemplateConstants(template);
-
-    // Step e: Cross-group verification with 90% threshold.
-    // Verify constants appear in ≥90% of group members.
+    // Step e: Cross-group verification — per-log constant check
     template = this.verifyConstants(template, logs);
 
     // Step f: Post-process — merge consecutive <*>, fix stray chars
@@ -361,63 +360,47 @@ export class SynLogTemplateRefiner {
   }
 
   /**
-   * Cross-group verification with 90% threshold.
+   * Per-log constant verification — matches the original SynLogPlus Python
+   * fix_templates() loop at DrainPlus.py lines 624-632.
    *
-   * Instead of requiring a constant token to appear in 100% of group members
-   * (which over-aggressively removes valid constants due to single-outlier logs),
-   * we use a 90% threshold: a token is retained only if present in ≥90% of logs.
+   * Python reference:
+   *   for idx in group_member_indices:
+   *       log = log_messages[idx]
+   *       _template = extracted_template
+   *       template_split = self.tokenize_log(_template.replace('<*>',''))
+   *       for token in template_split:
+   *           if token not in log:
+   *               _template = _template.replace(token, '<*>')
+   *       extracted_template = _template
    *
-   * This eliminates the 4 regression datasets (Hadoop, HPC, Mac, HealthApp)
-   * while preserving SynLogPlus-level PTA gains on all other datasets.
+   * For each group member, checks that every constant token in the template
+   * appears in that log. If absent, marks it as <*> for all subsequent checks.
+   * Template changes accumulate across members — a token removed by one log
+   * stays removed for all later logs.
    */
-  private verifyConstants(template: string, groupLogs: readonly string[]): string {
-    if (groupLogs.length === 0) return template;
-
-    // Phase 1: Extract candidate constant tokens from the template
-    const constantTokens = this.extractConstants(template);
-    if (constantTokens.length === 0) return template;
-
-    // Skip short tokens — single/double-char matches are false positives
-    const validTokens = constantTokens.filter((t) => t.length > 2);
-    if (validTokens.length === 0) return template;
-
-    // Phase 2: For each constant token, count presence across group members.
-    // Token survives only if present in ≥90% of logs.
-    const threshold = Math.max(1, Math.floor(groupLogs.length * 0.9));
-    const removals = new Set<string>();
-
-    for (const token of validTokens) {
-      let present = 0;
-      for (const log of groupLogs) {
-        if (log.includes(token)) present++;
-      }
-      if (present < threshold) {
-        removals.add(token);
-      }
-    }
-
-    // Phase 3: Apply removals — replace absent tokens with <*>
+  private verifyConstants(template: string, logs: readonly string[]): string {
+    if (logs.length === 0) return template;
     let result = template;
-    for (const token of removals) {
-      const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      result = result.replace(new RegExp(escaped, 'g'), '<*>');
-    }
-    return result;
-  }
 
-  /**
-   * Extract non-variable (constant) tokens from a template string.
-   * Filters out single-char tokens and deduplicates.
-   */
-  private extractConstants(template: string): string[] {
-    const parts = template.split(/<[^>]*>/);
-    const tokens = new Set<string>();
-    for (const part of parts) {
-      for (const token of part.match(/\S+/g) ?? []) {
-        if (token.length > 1) tokens.add(token);
+    for (const log of logs) {
+      // Extract constant (non-<*>) tokens from current template state
+      const constTokens = result
+        .replace(/<[^>]*>/g, '\x00')
+        .split('\x00')
+        .filter(Boolean)
+        .flatMap((s) => s.match(/\S+/g) ?? [])
+        .filter((t) => t.length > 1);
+
+      for (const token of constTokens) {
+        if (!log.includes(token)) {
+          // Absent from this log — mark as variable
+          const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          result = result.replace(new RegExp(escaped, 'g'), '<*>');
+        }
       }
     }
-    return [...tokens];
+
+    return result;
   }
 
   /**
