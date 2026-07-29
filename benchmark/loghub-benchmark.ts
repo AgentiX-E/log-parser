@@ -635,7 +635,10 @@ async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
       maxDiffRatio: ds.maxDiffRatio,
       enableClusterMerge: ds.enableClusterMerge ?? false,
       clusterMergePercent: ds.clusterMergePercent,
-      regexCollapsePatterns: ds.regexCollapsePatterns ?? [],
+      regexCollapsePatterns: (ds.regexCollapsePatterns ?? []).map(p => ({
+        regex: new RegExp(p.regex, 'g'),
+        replacement: p.replacement,
+      })),
     }),
   });
 
