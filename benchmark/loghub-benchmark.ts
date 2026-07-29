@@ -629,6 +629,9 @@ async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
 
   if (ds.useLLM) {
     // ── Adaptive batch refinement (packs N clusters per API call) ──
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) throw new Error("DEEPSEEK_API_KEY not set");
+
     const allClusters = drainTemplateIds.map(tid => ({
       templateId: tid,
       logs: clusterGroups.get(tid)!.logs,
