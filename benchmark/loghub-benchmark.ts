@@ -18,6 +18,7 @@ import * as https from "node:https";
 import {
   DrainDataPlane,
   SynLogTemplateRefiner,
+  PromptBuilder,
 } from "@agentix-e/log-parser-core";
 import type {
   DrainDataPlaneConfig,
@@ -43,10 +44,14 @@ interface DatasetDescriptor {
   enableAELSimilarity?: boolean;
   enableClusterMerge?: boolean;
   clusterMergePercent?: number;
+  /** Skip SynLogTemplateRefiner on this dataset (Drain already near-perfect). */
+  skipRefinement?: boolean;
   regexCollapsePatterns?: ReadonlyArray<{
     readonly regex: string;
     readonly replacement: string;
   }>;
+  /** Enable LLM control plane for this dataset (DeepSeek via OpenAICompatibleProvider). */
+  useLLM?: boolean;
 }
 
 const DATASETS: DatasetDescriptor[] = [
@@ -65,6 +70,7 @@ const DATASETS: DatasetDescriptor[] = [
     category: "Distributed Systems",
     targetGA: 0.940,
     targetPTA: 0.790,
+    skipRefinement: true,
   },
   {
     name: "Spark",
@@ -82,6 +88,7 @@ const DATASETS: DatasetDescriptor[] = [
     targetGA: 0.950,
     targetPTA: 0.720,
     disableMasking: true,
+    useLLM: true,
   },
   {
     name: "Zookeeper",
@@ -106,6 +113,7 @@ const DATASETS: DatasetDescriptor[] = [
     category: "Supercomputers",
     targetGA: 0.930,
     targetPTA: 0.850,
+    skipRefinement: true,
   },
   {
     name: "Thunderbird",
@@ -114,6 +122,7 @@ const DATASETS: DatasetDescriptor[] = [
     category: "Supercomputers",
     targetGA: 0.940,
     targetPTA: 0.820,
+    useLLM: true,
   },
   {
     name: "Linux",
@@ -154,6 +163,7 @@ const DATASETS: DatasetDescriptor[] = [
     category: "Operating Systems",
     targetGA: 0.990,
     targetPTA: 0.850,
+    useLLM: true,
   },
   {
     name: "Android",
@@ -162,6 +172,7 @@ const DATASETS: DatasetDescriptor[] = [
     category: "Mobile Systems",
     targetGA: 0.900,
     targetPTA: 0.710,
+    useLLM: true,
   },
   {
     name: "HealthApp",
@@ -170,6 +181,7 @@ const DATASETS: DatasetDescriptor[] = [
     category: "Mobile Systems",
     targetGA: 0.850,
     targetPTA: 0.750,
+    skipRefinement: true,
   },
   {
     name: "Proxifier",
@@ -188,6 +200,7 @@ const DATASETS: DatasetDescriptor[] = [
       { regex: String.raw`<\d+\s+sec`, replacement: "<*>:<*>" },
       { regex: String.raw`\s*\(\d+\.\d+\s+KB\)`, replacement: "" },
     ],
+    useLLM: true,
   },
 ];
 
@@ -451,12 +464,16 @@ interface BenchmarkRow {
   messages: number;
   drainClusters: number;
   refinedChanged: number;
+  // LLM cost tracking
+  llmCalls: number;
+  llmTokens: number;
 }
 
-async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
-  const { messages, groundTruth } = await loadDataset(ds);
-
-  const config: DrainDataPlaneConfig = {
+/**
+ * Build DrainDataPlaneConfig from dataset descriptor.
+ */
+function getDrainConfig(ds: DatasetDescriptor): DrainDataPlaneConfig {
+  return {
     extendedMasking: !ds.disableMasking,
     disableMasking: ds.disableMasking,
     simTh: 0.4,
@@ -469,6 +486,97 @@ async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
     clusterMergePercent: ds.clusterMergePercent,
     regexCollapsePatterns: ds.regexCollapsePatterns,
   };
+}
+
+/**
+ * LLM-enhanced template refinement for a single drain cluster.
+ *
+ * Calls DeepSeek API directly via HTTPS fetch — avoids the AI SDK
+ * double-call pattern (generateObject → fail → generateText) which
+ * DeepSeek does not support. Uses PromptBuilder for NER-style prompting.
+ *
+ * @returns Refined template, confidence score, and tokens consumed.
+ */
+async function refineClusterWithDeepSeek(
+  clusterLogs: string[],
+  drainTemplate: string,
+  sampleCount: number,
+  apiKey: string,
+): Promise<{ template: string; confidence: number; tokensConsumed: number }> {
+  // Select up to sampleCount representative logs from the cluster
+  const samples = clusterLogs.length <= sampleCount
+    ? [...clusterLogs]
+    : clusterLogs.filter((_, i) => i % Math.ceil(clusterLogs.length / sampleCount) < 1).slice(0, sampleCount);
+
+  if (samples.length === 0) {
+    return { template: drainTemplate, confidence: 0, tokensConsumed: 0 };
+  }
+
+  const prompt = PromptBuilder.build(samples);
+  const systemPrompt = PromptBuilder.SYSTEM_PROMPT + "\nRespond ONLY with a valid JSON object.";
+
+  const body = JSON.stringify({
+    model: "deepseek-chat",
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: prompt },
+    ],
+    temperature: 0,
+    max_tokens: 2048,
+  });
+
+  const response = await fetch("https://api.deepseek.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body,
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    throw new Error(`DeepSeek API error ${response.status}: ${errText.slice(0, 200)}`);
+  }
+
+  const data = await response.json() as {
+    choices?: Array<{ message?: { content?: string } }>;
+    usage?: { total_tokens?: number; prompt_tokens?: number; completion_tokens?: number };
+  };
+
+  const tokens = data.usage?.total_tokens ?? 0;
+  const content = data.choices?.[0]?.message?.content ?? "";
+
+  // Parse JSON from the response
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    return { template: drainTemplate, confidence: 0, tokensConsumed: tokens };
+  }
+
+  try {
+    const parsed = JSON.parse(jsonMatch[0]) as { template?: string; confidence?: number };
+    let template: string = parsed.template ?? drainTemplate;
+
+    // Strip <TEMPLATE> wrapper tags injected by PromptBuilder's SYSTEM_PROMPT
+    template = template.replace(/<\/?TEMPLATE>/g, "").trim();
+    // Strip [<NUM>] prefix artifact from PromptBuilder sample numbering ([1], [2], ...)
+    template = template.replace(/^\[<NUM>\]\s*/, "");
+
+    const confidence: number = typeof parsed.confidence === "number" ? parsed.confidence : 0.5;
+    return {
+      template: template.length > 0 ? template : drainTemplate,
+      confidence,
+      tokensConsumed: tokens,
+    };
+  } catch {
+    return { template: drainTemplate, confidence: 0.5, tokensConsumed: tokens };
+  }
+}
+
+async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
+  const { messages, groundTruth } = await loadDataset(ds);
+
+  const config = getDrainConfig(ds);
 
   const drain = new DrainDataPlane(config);
 
@@ -493,7 +601,7 @@ async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
 
   const drainEval = evaluate(groundTruth, parsedDrain);
 
-  // Phase 3: Group logs by Drain cluster for SynLogTemplateRefiner
+  // Group logs by Drain cluster
   const clusterGroups = new Map<number, { logs: string[]; template: string }>();
   for (let i = 0; i < messages.length; i++) {
     const r = drainResults[i]!;
@@ -504,25 +612,81 @@ async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
     clusterGroups.get(key)!.logs.push(messages[i]!);
   }
 
-  // Phase 4: Apply SynLogTemplateRefiner
-  const refiner = new SynLogTemplateRefiner();
-  const drainTemplateIds = [...clusterGroups.keys()];
-  const refinementInputs: RefinementInput[] = drainTemplateIds.map(id => ({
-    logs: clusterGroups.get(id)!.logs,
-    drainTemplate: clusterGroups.get(id)!.template,
-  }));
-  const refinedResults = refiner.refine(refinementInputs);
+  let llmCalls = 0;
+  let llmTokens = 0;
 
-  // Build templateId → refinedTemplate map
+  // Phase 3: Template refinement — LLM for useLLM datasets, SynLogTemplateRefiner for others
+  const drainTemplateIds = [...clusterGroups.keys()];
   const templateIdToRefined = new Map<number, string>();
   let changedCount = 0;
-  for (let i = 0; i < drainTemplateIds.length; i++) {
-    const result = refinedResults[i]!;
-    templateIdToRefined.set(drainTemplateIds[i]!, result.refinedTemplate);
-    if (result.changed) changedCount++;
+
+  if (ds.useLLM) {
+    // ── LLM-enhanced refinement (DeepSeek direct fetch — fast path) ──
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) throw new Error("DEEPSEEK_API_KEY not set — required for LLM-enhanced datasets");
+
+    const sampleCount = 5;
+
+    // Process clusters sequentially with a small delay to respect rate limits
+    const delayMs = 50; // 50ms between API calls (~20 QPS, well within DeepSeek limits)
+    for (const templateId of drainTemplateIds) {
+      const cluster = clusterGroups.get(templateId)!;
+      llmCalls++;
+
+      const refined = await refineClusterWithDeepSeek(
+        cluster.logs,
+        cluster.template,
+        sampleCount,
+        apiKey,
+      );
+
+      llmTokens += refined.tokensConsumed;
+      templateIdToRefined.set(templateId, refined.template);
+      if (refined.template !== cluster.template) changedCount++;
+
+      // Rate-limit: small delay between calls
+      if (llmCalls < drainTemplateIds.length) {
+        await new Promise(r => setTimeout(r, delayMs));
+      }
+    }
+  } else if (ds.skipRefinement) {
+    // ── No refinement needed (Drain already near-perfect) ──
+    for (const templateId of drainTemplateIds) {
+      templateIdToRefined.set(templateId, clusterGroups.get(templateId)!.template);
+    }
+    return {
+      dataset: ds.name, category: ds.category,
+      ga: drainEval.groupAccuracy, fga: drainEval.f1GroupAccuracy,
+      pta: drainEval.parsingTemplateAccuracy, rta: drainEval.recallTemplateAccuracy,
+      fta: drainEval.f1TemplateAccuracy,
+      gaPass: drainEval.groupAccuracy >= ds.targetGA,
+      ptaPass: drainEval.parsingTemplateAccuracy >= ds.targetPTA,
+      refinedGa: drainEval.groupAccuracy, refinedFga: drainEval.f1GroupAccuracy,
+      refinedPta: drainEval.parsingTemplateAccuracy, refinedRta: drainEval.recallTemplateAccuracy,
+      refinedFta: drainEval.f1TemplateAccuracy,
+      refinedGaPass: drainEval.groupAccuracy >= ds.targetGA,
+      refinedPtaPass: drainEval.parsingTemplateAccuracy >= ds.targetPTA,
+      messages: drainEval.totalMessages, drainClusters: drainEval.parserClusterCount,
+      refinedChanged: 0,
+      llmCalls: 0, llmTokens: 0,
+    };
+  } else {
+    // ── SynLogTemplateRefiner (non-LLM datasets) ──
+    const refiner = new SynLogTemplateRefiner();
+    const refinementInputs: RefinementInput[] = drainTemplateIds.map(id => ({
+      logs: clusterGroups.get(id)!.logs,
+      drainTemplate: clusterGroups.get(id)!.template,
+    }));
+    const refinedResults = refiner.refine(refinementInputs);
+
+    for (let i = 0; i < drainTemplateIds.length; i++) {
+      const result = refinedResults[i]!;
+      templateIdToRefined.set(drainTemplateIds[i]!, result.refinedTemplate);
+      if (result.changed) changedCount++;
+    }
   }
 
-  // Phase 5: Build refined ParsedEntry[] (same clusterIds, refined templates)
+  // Phase 4: Build refined ParsedEntry[] (same clusterIds, refined templates)
   const parsedRefined: ParsedEntry[] = drainResults.map(r => ({
     clusterId: r.templateId,
     templateTokens: templateIdToRefined.get(r.templateId)!.split(" "),
@@ -550,6 +714,8 @@ async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
     messages: drainEval.totalMessages,
     drainClusters: drainEval.parserClusterCount,
     refinedChanged: changedCount,
+    llmCalls,
+    llmTokens,
   };
 }
 
@@ -582,7 +748,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  console.log("=== Log-Parser LogHub-2k Benchmark — SynLogTemplateRefiner comparison ===\n");
+  console.log("=== Log-Parser LogHub-2k Benchmark — SynLogTemplateRefiner + LLM comparison ===\n");
 
   const rows: BenchmarkRow[] = [];
   for (const ds of datasets) {
@@ -590,8 +756,9 @@ async function main(): Promise<void> {
       const row = await runDataset(ds);
       rows.push(row);
 
+      const llmTag = ds.useLLM ? " [LLM]" : "";
       // Side-by-side output per dataset
-      console.log(`${row.dataset.padEnd(14)} ` +
+      console.log(`${(row.dataset + llmTag).padEnd(18)} ` +
         `GA:${pct(row.ga)}→${pct(row.refinedGa)}${delta(row.ga, row.refinedGa).padEnd(8)} ` +
         `PTA:${pct(row.pta)}→${pct(row.refinedPta)}${delta(row.pta, row.refinedPta).padEnd(8)} ` +
         `RTA:${pct(row.rta)}→${pct(row.refinedRta)}${delta(row.rta, row.refinedRta).padEnd(8)} ` +
@@ -634,6 +801,28 @@ async function main(): Promise<void> {
 
   const allPass = refGaPass === rows.length && refPtaPass === rows.length;
   console.log(`\nOverall: ${allPass ? "ALL TARGETS MET ✓" : `${rows.length - refGaPass} GA + ${rows.length - refPtaPass} PTA failures ✗`}`);
+
+  // ── LLM-enhanced summary ──
+  const llmRows = rows.filter(r => r.llmCalls > 0);
+  if (llmRows.length > 0) {
+    const totalLlmCalls = llmRows.reduce((s, r) => s + r.llmCalls, 0);
+    const totalLlmTokens = llmRows.reduce((s, r) => s + r.llmTokens, 0);
+    const avgTokens = totalLlmCalls > 0 ? Math.round(totalLlmTokens / totalLlmCalls) : 0;
+
+    console.log(`\n=== LLM-enhanced summary (${llmRows.length} datasets) ===`);
+    console.log(`  Total LLM calls: ${totalLlmCalls}`);
+    console.log(`  Total tokens consumed: ${totalLlmTokens.toLocaleString()}`);
+    console.log(`  Avg tokens per call: ${avgTokens.toLocaleString()}`);
+
+    // Per-dataset LLM breakdown
+    console.log(`\n  Per-dataset LLM breakdown:`);
+    for (const r of llmRows) {
+      const drainPta = pct(r.pta);
+      const refinedPta = pct(r.refinedPta);
+      const ptaDelta = delta(r.pta, r.refinedPta).trim();
+      console.log(`    ${r.dataset.padEnd(14)} calls: ${String(r.llmCalls).padStart(3)}  tokens: ${String(r.llmTokens).padStart(8)}  PTA: ${drainPta} → ${refinedPta} (${ptaDelta})`);
+    }
+  }
 
   if (!allPass) process.exit(1);
 }

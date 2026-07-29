@@ -131,6 +131,40 @@ describe('CLI', () => {
     expect(logCalls.length).toBeGreaterThanOrEqual(1);
   });
 
+  // parse command with apache adapter
+  it('parse command should accept --adapter apache', async () => {
+    const program = createCLI();
+    program.exitOverride();
+    try {
+      await program.parseAsync(parseArgs('parse', '-i', testFile, '--adapter', 'apache'), {
+        from: 'node',
+      });
+    } catch {
+      // Expected
+    }
+    const logCalls = consoleLogSpy.mock.calls.filter(
+      (c) => typeof c[0] === 'string' && (c[0] as string).startsWith('{'),
+    );
+    expect(logCalls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  // parse command with json adapter
+  it('parse command should accept --adapter json', async () => {
+    const program = createCLI();
+    program.exitOverride();
+    try {
+      await program.parseAsync(parseArgs('parse', '-i', testFile, '--adapter', 'json'), {
+        from: 'node',
+      });
+    } catch {
+      // Expected
+    }
+    const logCalls = consoleLogSpy.mock.calls.filter(
+      (c) => typeof c[0] === 'string' && (c[0] as string).startsWith('{'),
+    );
+    expect(logCalls.length).toBeGreaterThanOrEqual(1);
+  });
+
   // stats command with valid input
   it('stats command should show statistics', async () => {
     const program = createCLI();
