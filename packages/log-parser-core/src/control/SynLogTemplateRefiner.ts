@@ -152,59 +152,6 @@ export class SynLogTemplateRefiner {
     return { refinedTemplate: template, changed };
   }
 
-  /**
-   * Anonymize constant tokens in a template that match variable patterns.
-   *
-   * After extracting the raw template from original samples, this pass
-   * checks each CONSTANT token (non-<*>) against regex patterns, number
-   * heuristics, and common variable literals. Tokens matching variable
-   * patterns are replaced with <*>.
-   *
-   * By doing anonymization AFTER extraction, constants that Drain
-   * correctly identified are preserved while still catching variables.
-   */
-  private anonymizeTemplateConstants(template: string): string {
-    const tokens = this.tokenize(template);
-    const result: string[] = [];
-
-    for (const token of tokens) {
-      // Already a variable marker — keep as-is
-      if (token === '<*>' || token.startsWith('<')) {
-        result.push(token);
-        continue;
-      }
-      // Delimiter — keep as-is
-      if (SynLogTemplateRefiner.DELIMITERS.has(token)) {
-        result.push(token);
-        continue;
-      }
-      // Common variable literals → <*>
-      if (SynLogTemplateRefiner.COMMON_VARIABLES.has(token.toLowerCase())) {
-        result.push('<*>');
-        continue;
-      }
-      // Number variable → <*>
-      if (this.isNumber(token)) {
-        result.push('<*>');
-        continue;
-      }
-      // Regex pattern match on individual token → <*>
-      let matched = false;
-      for (const pattern of SynLogTemplateRefiner.VARIABLE_PATTERNS) {
-        pattern.lastIndex = 0;
-        if (pattern.test(token)) {
-          result.push('<*>');
-          matched = true;
-          break;
-        }
-      }
-      if (!matched) {
-        result.push(token); // genuine constant — keep it
-      }
-    }
-    return result.join('');
-  }
-
   /** Apply all domain-agnostic regex patterns to anonymize a log line. */
   anonymizeWithRegex(log: string): string {
     let result = log;
@@ -249,28 +196,36 @@ export class SynLogTemplateRefiner {
   }
 
   /**
-   * Tokenize a log string, preserving delimiters as separate tokens.
-   * Handles trailing periods on tokens.
+   * Tokenize a log message exactly matching Python's tokenize_log().
+   *
+   * Python reference: re.split(r'(\.$|\.{5,}|[\s,;!@#$%^&(){}\[\]=\-_:\\"+])', msg)
+   * from /tmp/SynLogPlus/benchmark/DrainPlus/DrainPlus.py:550-563
+   *
+   * The regex uses a CAPTURING group, which keeps delimiters as separate
+   * tokens in the output. Post-processing splits tokens >1 char ending
+   * with '.' into [token, '.'] to normalize trailing periods.
    */
   tokenize(log: string): string[] {
+    // Python capturing-group split: delimiters appear as separate tokens
+    // Match: trailing period (\.$), 5+ consecutive periods (\.{5,}),
+    // or any char in [\s,;!@#$%^&(){}\[\]=\-_:\\"+]
+    const splitPattern = /(\.$|\.{5,}|[\s,;!@#$%^&(){}[\]=\-_:"\\'+])/;
+    const parts = log.split(splitPattern);
+
     const result: string[] = [];
-
-    // Split on delimiters but keep them as separate tokens
-    const parts = log.split(/([ ,!@#$%^&(){}[\]=\-_:;"'+])/);
-
     for (const part of parts) {
       if (!part) continue;
-      if (SynLogTemplateRefiner.DELIMITERS.has(part)) {
-        result.push(part);
+
+      // Python post-processing: tokens >1 char ending with '.' → split
+      // into [token_without_dot, '.'] (lines 551-558 in DrainPlus.py)
+      if (part.length > 1 && part.endsWith('.') && part !== '.') {
+        result.push(part.slice(0, -1));
+        result.push('.');
       } else {
-        // Handle trailing period on a token
-        if (part.length > 1 && part.endsWith('.') && !part.startsWith('.')) {
-          result.push(part.slice(0, -1), '.');
-        } else {
-          result.push(part);
-        }
+        result.push(part);
       }
     }
+
     return result.filter(Boolean);
   }
 
