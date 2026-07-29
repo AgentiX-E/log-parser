@@ -499,7 +499,7 @@ function estimateTokens(logs: string[]): number {
 
 function packClusters(
   clusters: Array<{ templateId: number; logs: string[]; template: string }>,
-  config: { contextWindow: number; safetyMargin: number; samplesPerCluster: number },
+  config: { contextWindow: number; safetyMargin: number; samplesPerCluster: number; maxClustersPerBatch: number },
 ): Array<Array<{ templateId: number; logs: string[]; template: string }>> {
   const maxTokens = Math.floor(config.contextWindow * (1 - config.safetyMargin));
   const batches: typeof clusters[] = [];
@@ -512,6 +512,7 @@ function packClusters(
       : c.logs.filter((_, i) => i % Math.ceil(c.logs.length / config.samplesPerCluster) < 1).slice(0, config.samplesPerCluster);
     const t = estimateTokens(samples);
     if (curTokens + t > maxTokens && current.length > 0) { batches.push(current); current = []; curTokens = 0; }
+    if (current.length >= config.maxClustersPerBatch) { batches.push(current); current = []; curTokens = 0; }
     current.push({ ...c, logs: samples });
     curTokens += t;
   }
@@ -669,7 +670,7 @@ async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
       template: clusterGroups.get(tid)!.template,
     }));
 
-    const batches = packClusters(allClusters, { contextWindow: 64000, safetyMargin: 0.2, samplesPerCluster: 5 });
+    const batches = packClusters(allClusters, { contextWindow: 64000, safetyMargin: 0.2, samplesPerCluster: 5, maxClustersPerBatch: 20 });
     console.log(`  Packed ${allClusters.length} clusters into ${batches.length} batches`);
 
     for (const batch of batches) {
