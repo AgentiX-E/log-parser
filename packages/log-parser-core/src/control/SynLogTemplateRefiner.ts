@@ -118,19 +118,17 @@ export class SynLogTemplateRefiner {
       return { refinedTemplate: drainTemplate, changed: false };
     }
 
-    // Step a: Sample 2 unique, representative log messages
+    // Step a: Sample 2 unique, representative log messages (ORIGINAL, not anonymized)
     const unique = [...new Set(logs)];
     const samples = unique.slice(0, 2);
 
-    // Step b: Regex anonymize
-    const anon = samples.map((log) => this.anonymizeWithRegex(log));
+    // Step b: Tokenize ORIGINAL (non-anonymized) samples.
+    // CRITICAL: Compare raw samples BEFORE anonymization to preserve
+    // Drain-identified constants (e.g., "node-01" that would match a hostname regex).
+    const tokenized = samples.map((log) => this.tokenize(log));
 
-    // Step c: Number anonymize
-    const anonNums = anon.map((log) => this.anonymizeNumbers(log));
-
-    // Step d: Tokenize and extract template
-    const tokenized = anonNums.map((log) => this.tokenize(log));
-
+    // Step c: Extract template from ORIGINAL tokens.
+    // Constants = tokens present in both samples in the same sequential order.
     let template: string;
     if (tokenized.length === 1) {
       template = this.refineSingle(tokenized[0]!);
@@ -138,17 +136,73 @@ export class SynLogTemplateRefiner {
       template = this.extractTemplate(tokenized[0]!, tokenized[1]!);
     }
 
-    // Step e: Cross-group verification with 90% threshold
-    // Constants must appear in ≥90% of group members to survive.
-    // This prevents over-aggressive removal from outlier logs while
-    // still catching coincidental 2-sample matches.
+    // Step d: Anonymize only VARIABLE positions in the extracted template.
+    // This preserves constants that Drain correctly identified, while
+    // still catching variable tokens through regex/heuristic patterns.
+    template = this.anonymizeTemplateConstants(template);
+
+    // Step e: Cross-group verification with 90% threshold.
+    // Verify constants appear in ≥90% of group members.
     template = this.verifyConstants(template, logs);
 
-    // Step f: Post-process
+    // Step f: Post-process — merge consecutive <*>, fix stray chars
     template = this.postProcess(template);
 
     const changed = template !== drainTemplate;
     return { refinedTemplate: template, changed };
+  }
+
+  /**
+   * Anonymize constant tokens in a template that match variable patterns.
+   *
+   * After extracting the raw template from original samples, this pass
+   * checks each CONSTANT token (non-<*>) against regex patterns, number
+   * heuristics, and common variable literals. Tokens matching variable
+   * patterns are replaced with <*>.
+   *
+   * By doing anonymization AFTER extraction, constants that Drain
+   * correctly identified are preserved while still catching variables.
+   */
+  private anonymizeTemplateConstants(template: string): string {
+    const tokens = this.tokenize(template);
+    const result: string[] = [];
+
+    for (const token of tokens) {
+      // Already a variable marker — keep as-is
+      if (token === '<*>' || token.startsWith('<')) {
+        result.push(token);
+        continue;
+      }
+      // Delimiter — keep as-is
+      if (SynLogTemplateRefiner.DELIMITERS.has(token)) {
+        result.push(token);
+        continue;
+      }
+      // Common variable literals → <*>
+      if (SynLogTemplateRefiner.COMMON_VARIABLES.has(token.toLowerCase())) {
+        result.push('<*>');
+        continue;
+      }
+      // Number variable → <*>
+      if (this.isNumber(token)) {
+        result.push('<*>');
+        continue;
+      }
+      // Regex pattern match on individual token → <*>
+      let matched = false;
+      for (const pattern of SynLogTemplateRefiner.VARIABLE_PATTERNS) {
+        pattern.lastIndex = 0;
+        if (pattern.test(token)) {
+          result.push('<*>');
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        result.push(token); // genuine constant — keep it
+      }
+    }
+    return result.join('');
   }
 
   /** Apply all domain-agnostic regex patterns to anonymize a log line. */
