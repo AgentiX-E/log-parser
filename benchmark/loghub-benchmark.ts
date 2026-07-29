@@ -6,7 +6,8 @@
  * - Downloads datasets from logpai/logparser GitHub repo
  * - Uses Content column as Drain input (standard Loghub approach)
  * - Per-dataset tuning (disableMasking, drainExtraDelimiters, etc.)
- * - Identical evaluation metrics: GA, FGA, PTA, FTA
+ * - Identical evaluation metrics: GA, FGA, PTA, RTA, FTA
+ * - SynLogTemplateRefiner side-by-side comparison (Drain vs Refined)
  *
  * Usage:
  *   npx tsx benchmark/loghub-benchmark.ts [--dataset HDFS]
@@ -14,8 +15,15 @@
 
 import * as http from "node:http";
 import * as https from "node:https";
-import { DrainDataPlane } from "@agentix-e/log-parser-core";
-import type { DrainDataPlaneConfig } from "@agentix-e/log-parser-core";
+import {
+  DrainDataPlane,
+  SynLogTemplateRefiner,
+} from "@agentix-e/log-parser-core";
+import type {
+  DrainDataPlaneConfig,
+  RefinementInput,
+  DrainResult,
+} from "@agentix-e/log-parser-core";
 
 // ============================================================
 // Dataset definitions (identical to drain-ts DATASETS array)
@@ -299,6 +307,7 @@ interface EvaluationResult {
   groupAccuracy: number;
   f1GroupAccuracy: number;
   parsingTemplateAccuracy: number;
+  recallTemplateAccuracy: number;
   f1TemplateAccuracy: number;
   totalMessages: number;
   groundTruthTemplateCount: number;
@@ -311,7 +320,7 @@ function isMaskedToken(token: string): boolean {
 
 function evaluate(groundTruth: GroundTruthEntry[], parsed: ParsedEntry[]): EvaluationResult {
   const n = groundTruth.length;
-  if (n === 0) return { groupAccuracy: 1, f1GroupAccuracy: 1, parsingTemplateAccuracy: 1, f1TemplateAccuracy: 1, totalMessages: 0, groundTruthTemplateCount: 0, parserClusterCount: 0 };
+  if (n === 0) return { groupAccuracy: 1, f1GroupAccuracy: 1, parsingTemplateAccuracy: 1, recallTemplateAccuracy: 1, f1TemplateAccuracy: 1, totalMessages: 0, groundTruthTemplateCount: 0, parserClusterCount: 0 };
 
   // GA / FGA
   const gtGroups = new Map<number, Set<number>>();
@@ -351,7 +360,7 @@ function evaluate(groundTruth: GroundTruthEntry[], parsed: ParsedEntry[]): Evalu
   const f1Recall = f1RecallSum / parsedGroups.size;
   const fga = (2 * f1Precision * f1Recall) / (f1Precision + f1Recall) || 0;
 
-  // PTA / FTA
+  // PTA / RTA / FTA (token-level)
   let ptaMatches = 0, ptaTotalTokens = 0, ftaMatches = 0, ftaParserTokens = 0, ftaGtTokens = 0;
   for (let i = 0; i < n; i++) {
     const gtTok = groundTruth[i]!.templateTokens;
@@ -374,9 +383,10 @@ function evaluate(groundTruth: GroundTruthEntry[], parsed: ParsedEntry[]): Evalu
   const pta = ptaTotalTokens > 0 ? ptaMatches / ptaTotalTokens : 1;
   const ftaPrecision = ftaParserTokens > 0 ? ftaMatches / ftaParserTokens : 0;
   const ftaRecall = ftaGtTokens > 0 ? ftaMatches / ftaGtTokens : 0;
+  const rta = ftaRecall;
   const fta = (2 * ftaPrecision * ftaRecall) / (ftaPrecision + ftaRecall) || 0;
 
-  return { groupAccuracy: ga, f1GroupAccuracy: fga, parsingTemplateAccuracy: pta, f1TemplateAccuracy: fta, totalMessages: n, groundTruthTemplateCount: gtGroups.size, parserClusterCount: parsedGroups.size };
+  return { groupAccuracy: ga, f1GroupAccuracy: fga, parsingTemplateAccuracy: pta, recallTemplateAccuracy: rta, f1TemplateAccuracy: fta, totalMessages: n, groundTruthTemplateCount: gtGroups.size, parserClusterCount: parsedGroups.size };
 }
 
 // ============================================================
@@ -413,16 +423,34 @@ async function loadDataset(ds: DatasetDescriptor): Promise<{ messages: string[];
 // Benchmark runner
 // ============================================================
 
+interface DualEval {
+  drain: EvaluationResult;
+  refined: EvaluationResult;
+}
+
 interface BenchmarkRow {
   dataset: string;
   category: string;
+  // Drain metrics
   ga: number;
   fga: number;
   pta: number;
+  rta: number;
   fta: number;
   gaPass: boolean;
   ptaPass: boolean;
+  // Refined metrics
+  refinedGa: number;
+  refinedFga: number;
+  refinedPta: number;
+  refinedRta: number;
+  refinedFta: number;
+  refinedGaPass: boolean;
+  refinedPtaPass: boolean;
+  // Metadata
   messages: number;
+  drainClusters: number;
+  refinedChanged: number;
 }
 
 async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
@@ -444,31 +472,99 @@ async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
 
   const drain = new DrainDataPlane(config);
 
+  // Phase 1: Train Drain on all messages
   for (let i = 0; i < messages.length; i++) {
     drain.train(messages[i]!);
   }
 
   drain.mergeClusters();
 
-  const parsed: ParsedEntry[] = [];
+  // Phase 2: Collect Drain results and cluster assignments
+  const drainResults: DrainResult[] = [];
   for (let i = 0; i < messages.length; i++) {
-    const result = drain.train(messages[i]!);
-    parsed.push({ clusterId: result.templateId, templateTokens: result.template.split(" ") });
+    drainResults.push(drain.train(messages[i]!));
   }
 
-  const evalResult = evaluate(groundTruth, parsed);
+  // Build Drain ParsedEntry[]
+  const parsedDrain: ParsedEntry[] = drainResults.map(r => ({
+    clusterId: r.templateId,
+    templateTokens: r.template.split(" "),
+  }));
+
+  const drainEval = evaluate(groundTruth, parsedDrain);
+
+  // Phase 3: Group logs by Drain cluster for SynLogTemplateRefiner
+  const clusterGroups = new Map<number, { logs: string[]; template: string }>();
+  for (let i = 0; i < messages.length; i++) {
+    const r = drainResults[i]!;
+    const key = r.templateId;
+    if (!clusterGroups.has(key)) {
+      clusterGroups.set(key, { logs: [], template: r.template });
+    }
+    clusterGroups.get(key)!.logs.push(messages[i]!);
+  }
+
+  // Phase 4: Apply SynLogTemplateRefiner
+  const refiner = new SynLogTemplateRefiner();
+  const drainTemplateIds = [...clusterGroups.keys()];
+  const refinementInputs: RefinementInput[] = drainTemplateIds.map(id => ({
+    logs: clusterGroups.get(id)!.logs,
+    drainTemplate: clusterGroups.get(id)!.template,
+  }));
+  const refinedResults = refiner.refine(refinementInputs);
+
+  // Build templateId → refinedTemplate map
+  const templateIdToRefined = new Map<number, string>();
+  let changedCount = 0;
+  for (let i = 0; i < drainTemplateIds.length; i++) {
+    const result = refinedResults[i]!;
+    templateIdToRefined.set(drainTemplateIds[i]!, result.refinedTemplate);
+    if (result.changed) changedCount++;
+  }
+
+  // Phase 5: Build refined ParsedEntry[] (same clusterIds, refined templates)
+  const parsedRefined: ParsedEntry[] = drainResults.map(r => ({
+    clusterId: r.templateId,
+    templateTokens: templateIdToRefined.get(r.templateId)!.split(" "),
+  }));
+
+  const refinedEval = evaluate(groundTruth, parsedRefined);
 
   return {
     dataset: ds.name,
     category: ds.category,
-    ga: evalResult.groupAccuracy,
-    fga: evalResult.f1GroupAccuracy,
-    pta: evalResult.parsingTemplateAccuracy,
-    fta: evalResult.f1TemplateAccuracy,
-    gaPass: evalResult.groupAccuracy >= ds.targetGA,
-    ptaPass: evalResult.parsingTemplateAccuracy >= ds.targetPTA,
-    messages: evalResult.totalMessages,
+    ga: drainEval.groupAccuracy,
+    fga: drainEval.f1GroupAccuracy,
+    pta: drainEval.parsingTemplateAccuracy,
+    rta: drainEval.recallTemplateAccuracy,
+    fta: drainEval.f1TemplateAccuracy,
+    gaPass: drainEval.groupAccuracy >= ds.targetGA,
+    ptaPass: drainEval.parsingTemplateAccuracy >= ds.targetPTA,
+    refinedGa: refinedEval.groupAccuracy,
+    refinedFga: refinedEval.f1GroupAccuracy,
+    refinedPta: refinedEval.parsingTemplateAccuracy,
+    refinedRta: refinedEval.recallTemplateAccuracy,
+    refinedFta: refinedEval.f1TemplateAccuracy,
+    refinedGaPass: refinedEval.groupAccuracy >= ds.targetGA,
+    refinedPtaPass: refinedEval.parsingTemplateAccuracy >= ds.targetPTA,
+    messages: drainEval.totalMessages,
+    drainClusters: drainEval.parserClusterCount,
+    refinedChanged: changedCount,
   };
+}
+
+// ============================================================
+// Formatting helpers
+// ============================================================
+
+function pct(v: number): string {
+  return `${(v * 100).toFixed(1)}%`;
+}
+
+function delta(drain: number, refined: number): string {
+  const diff = (refined - drain) * 100;
+  if (Math.abs(diff) < 0.05) return " ~";
+  return diff > 0 ? `+${diff.toFixed(1)}pp` : `${diff.toFixed(1)}pp`;
 }
 
 // ============================================================
@@ -480,45 +576,64 @@ async function main(): Promise<void> {
   const datasets = filterDataset
     ? DATASETS.filter(d => d.name.toLowerCase() === filterDataset.toLowerCase())
     : DATASETS;
-  
+
   if (datasets.length === 0) {
     console.error(`No dataset matching "${filterDataset}". Available: ${DATASETS.map(d => d.name).join(", ")}`);
     process.exit(1);
   }
 
-  console.log("=== Log-Parser LogHub-2k Benchmark (RFC 4180, drain-ts compatible) ===\n");
+  console.log("=== Log-Parser LogHub-2k Benchmark — SynLogTemplateRefiner comparison ===\n");
 
   const rows: BenchmarkRow[] = [];
   for (const ds of datasets) {
-    process.stdout.write(`${ds.name.padEnd(14)} `);
     try {
       const row = await runDataset(ds);
       rows.push(row);
-      const gaStatus = row.gaPass ? "✓" : "✗";
-      const ptaStatus = row.ptaPass ? "✓" : "✗";
-      console.log(`GA:${(row.ga*100).toFixed(1)}%${gaStatus} PTA:${(row.pta*100).toFixed(1)}%${ptaStatus} (${row.messages}msgs)`);
+
+      // Side-by-side output per dataset
+      console.log(`${row.dataset.padEnd(14)} ` +
+        `GA:${pct(row.ga)}→${pct(row.refinedGa)}${delta(row.ga, row.refinedGa).padEnd(8)} ` +
+        `PTA:${pct(row.pta)}→${pct(row.refinedPta)}${delta(row.pta, row.refinedPta).padEnd(8)} ` +
+        `RTA:${pct(row.rta)}→${pct(row.refinedRta)}${delta(row.rta, row.refinedRta).padEnd(8)} ` +
+        `FTA:${pct(row.fta)}→${pct(row.refinedFta)}${delta(row.fta, row.refinedFta)}`);
     } catch (err) {
-      console.log(`ERROR: ${err}`);
+      console.log(`${ds.name.padEnd(14)} ERROR: ${err}`);
     }
   }
 
   if (rows.length === 0) { console.log("\nNo results."); return; }
 
+  // Summary: Drain averages
   const avgGA = rows.reduce((s, r) => s + r.ga, 0) / rows.length;
   const avgFGA = rows.reduce((s, r) => s + r.fga, 0) / rows.length;
   const avgPTA = rows.reduce((s, r) => s + r.pta, 0) / rows.length;
+  const avgRTA = rows.reduce((s, r) => s + r.rta, 0) / rows.length;
   const avgFTA = rows.reduce((s, r) => s + r.fta, 0) / rows.length;
   const gaPass = rows.filter(r => r.gaPass).length;
   const ptaPass = rows.filter(r => r.ptaPass).length;
 
-  console.log(`\n=== SUMMARY (${rows.length} datasets) ===`);
-  console.log(`Average GA:  ${(avgGA*100).toFixed(1)}%  (${gaPass}/${rows.length} passed targetGA)`);
-  console.log(`Average FGA: ${(avgFGA*100).toFixed(1)}%`);
-  console.log(`Average PTA: ${(avgPTA*100).toFixed(1)}%  (${ptaPass}/${rows.length} passed targetPTA)`);
-  console.log(`Average FTA: ${(avgFTA*100).toFixed(1)}%`);
+  // Summary: Refined averages
+  const avgRefGA = rows.reduce((s, r) => s + r.refinedGa, 0) / rows.length;
+  const avgRefFGA = rows.reduce((s, r) => s + r.refinedFga, 0) / rows.length;
+  const avgRefPTA = rows.reduce((s, r) => s + r.refinedPta, 0) / rows.length;
+  const avgRefRTA = rows.reduce((s, r) => s + r.refinedRta, 0) / rows.length;
+  const avgRefFTA = rows.reduce((s, r) => s + r.refinedFta, 0) / rows.length;
+  const refGaPass = rows.filter(r => r.refinedGaPass).length;
+  const refPtaPass = rows.filter(r => r.refinedPtaPass).length;
 
-  const allPass = gaPass === rows.length && ptaPass === rows.length;
-  console.log(`\nOverall: ${allPass ? "ALL TARGETS MET ✓" : `${rows.length - gaPass} GA + ${rows.length - ptaPass} PTA failures ✗`}`);
+  console.log(`\n=== SUMMARY (${rows.length} datasets) ===`);
+  console.log(`                     Drain       Refined      Delta`);
+  console.log(`Average GA:     ${pct(avgGA).padEnd(10)}  ${pct(avgRefGA).padEnd(10)}  ${delta(avgGA, avgRefGA)}`);
+  console.log(`Average FGA:    ${pct(avgFGA).padEnd(10)}  ${pct(avgRefFGA).padEnd(10)}  ${delta(avgFGA, avgRefFGA)}`);
+  console.log(`Average PTA:    ${pct(avgPTA).padEnd(10)}  ${pct(avgRefPTA).padEnd(10)}  ${delta(avgPTA, avgRefPTA)}`);
+  console.log(`Average RTA:    ${pct(avgRTA).padEnd(10)}  ${pct(avgRefRTA).padEnd(10)}  ${delta(avgRTA, avgRefRTA)}`);
+  console.log(`Average FTA:    ${pct(avgFTA).padEnd(10)}  ${pct(avgRefFTA).padEnd(10)}  ${delta(avgFTA, avgRefFTA)}`);
+
+  console.log(`\nGA targets:     ${gaPass}/${rows.length} passed  →  ${refGaPass}/${rows.length} passed (refined)`);
+  console.log(`PTA targets:    ${ptaPass}/${rows.length} passed  →  ${refPtaPass}/${rows.length} passed (refined)`);
+
+  const allPass = refGaPass === rows.length && refPtaPass === rows.length;
+  console.log(`\nOverall: ${allPass ? "ALL TARGETS MET ✓" : `${rows.length - refGaPass} GA + ${rows.length - refPtaPass} PTA failures ✗`}`);
 
   if (!allPass) process.exit(1);
 }

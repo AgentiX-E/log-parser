@@ -26,6 +26,7 @@
   },
   "packageManager": "pnpm@10.0.0",
   "devDependencies": {
+    "@agentix-e/log-parser-core": "workspace:*",
     "@eslint/js": "^9.39.5",
     "@types/node": "^22.0.0",
     "@types/papaparse": "^5.5.2",

@@ -17,6 +17,9 @@ importers:
 
   .:
     devDependencies:
+      '@agentix-e/log-parser-core':
+        specifier: workspace:*
+        version: link:packages/log-parser-core
       '@eslint/js':
         specifier: ^9.39.5
         version: 9.39.5
