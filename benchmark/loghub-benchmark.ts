@@ -541,13 +541,17 @@ async function batchRefineClusters(
   domain?: string,
 ): Promise<{ results: Array<{ templateId: number; template: string; confidence: number }>; tokensConsumed: number }> {
   const prompt = buildBatchPrompt(clusters, domain);
+  // Scale max_tokens with batch size: ~40 tokens per cluster for template output
+  const outTokens = Math.max(1024, Math.min(8192, clusters.length * 40));
   const body = JSON.stringify({
     model: "deepseek-chat",
     messages: [
       { role: "system", content: PromptBuilder.SYSTEM_PROMPT },
       { role: "user", content: prompt },
     ],
-    temperature: 0, max_tokens: 4096,
+    temperature: 0,
+    max_tokens: outTokens,
+    response_format: { type: "json_object" },
   });
 
   const r = await fetch("https://api.deepseek.com/v1/chat/completions", {
@@ -561,16 +565,43 @@ async function batchRefineClusters(
 
   const results: Array<{ templateId: number; template: string; confidence: number }> = [];
   try {
-    const m = content.match(/\[[\s\S]*\]/);
-    const arr = JSON.parse(m?.[0] ?? "[]") as Array<{ cluster?: number; template?: string; confidence?: number }>;
+    // Parse JSON response — handle array, wrapped object, and code-fenced variants
+    let json = content;
+    // Strip ```json fences if present
+    const fenceMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenceMatch) json = fenceMatch[1]!;
+    
+    const parsed = JSON.parse(json.trim());
+    // Support both: [{...}] (array) and {templates: [...]} (object wrapper)
+    const arr = Array.isArray(parsed) ? parsed : (parsed.templates ?? parsed.results ?? [parsed]);
+    
     for (const item of arr) {
-      const idx = (item.cluster ?? 0) - 1;
+      const idx = (item.cluster ?? item.index ?? 0) - 1;
       if (idx >= 0 && idx < clusters.length) {
         const tpl = (item.template ?? "").replace(/<\/?TEMPLATE>/g, "").replace(/^\[<NUM>\]\s*/, "").trim();
-        results.push({ templateId: clusters[idx]!.templateId, template: tpl || clusters[idx]!.template, confidence: item.confidence ?? 0.5 });
+        results.push({
+          templateId: clusters[idx]!.templateId,
+          template: tpl || clusters[idx]!.template,
+          confidence: item.confidence ?? 0.5,
+        });
       }
     }
-  } catch { /* fallback below */ }
+  } catch {
+    // Fallback: regex extraction from raw content
+    const m = content.match(/\[[\s\S]*\]/);
+    if (m) {
+      try {
+        const arr = JSON.parse(m[0]) as Array<{ cluster?: number; template?: string; confidence?: number }>;
+        for (const item of arr) {
+          const idx = (item.cluster ?? 0) - 1;
+          if (idx >= 0 && idx < clusters.length) {
+            const tpl = (item.template ?? "").replace(/<\/?TEMPLATE>/g, "").replace(/^\[<NUM>\]\s*/, "").trim();
+            results.push({ templateId: clusters[idx]!.templateId, template: tpl || clusters[idx]!.template, confidence: item.confidence ?? 0.5 });
+          }
+        }
+      } catch { /* both parse attempts failed */ }
+    }
+  }
 
   for (const c of clusters) {
     if (!results.some(r => r.templateId === c.templateId)) {
