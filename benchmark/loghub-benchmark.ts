@@ -23,8 +23,12 @@ import {
 import type {
   DrainDataPlaneConfig,
   RefinementInput,
-  DrainResult,
 } from "@agentix-e/log-parser-core";
+import {
+  TemplateMiner,
+  TemplateMinerConfig,
+  EXTENDED_MASKING_INSTRUCTIONS,
+} from "@agentix-e/drain-ts";
 
 // ============================================================
 // Dataset definitions (identical to drain-ts DATASETS array)
@@ -615,17 +619,34 @@ async function batchRefineClusters(
 async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
   const { messages, groundTruth } = await loadDataset(ds);
 
-  const config = getDrainConfig(ds);
+  // Use TemplateMiner directly (matching drain-ts benchmark exactly)
+  const masking = ds.disableMasking ? [] : EXTENDED_MASKING_INSTRUCTIONS;
+  const miner = new TemplateMiner({
+    config: TemplateMinerConfig.from({
+      simTh: 0.4,
+      depth: 4,
+      maxChildren: 100,
+      maskingInstructions: masking,
+      drainExtraDelimiters: ds.drainExtraDelimiters ?? [],
+      enableAdjacentFusion: ds.enableAdjacentFusion ?? false,
+      enableAELSimilarity: ds.enableAELSimilarity ?? false,
+      enableClusterMerge: ds.enableClusterMerge ?? false,
+      clusterMergePercent: ds.clusterMergePercent,
+      regexCollapsePatterns: ds.regexCollapsePatterns ?? [],
+    }),
+  });
 
-  const drain = new DrainDataPlane(config);
-
-  // Phase 1: Train Drain on all messages (single pass, matching drain-ts benchmark)
-  const drainResults: DrainResult[] = [];
+  // Train on all messages (single pass)
+  const drainResults: Array<{ templateId: number; template: string; tokens: string[] }> = [];
   for (let i = 0; i < messages.length; i++) {
-    drainResults.push(drain.train(messages[i]!));
+    const result = miner.addLogMessage(messages[i]!);
+    const tokens = miner.drain.getContentAsTokens(messages[i]!);
+    drainResults.push({
+      templateId: result.clusterId,
+      template: result.templateMined,
+      tokens,
+    });
   }
-
-  drain.mergeClusters();
 
   // Build Drain ParsedEntry[]
   const parsedDrain: ParsedEntry[] = drainResults.map(r => ({
