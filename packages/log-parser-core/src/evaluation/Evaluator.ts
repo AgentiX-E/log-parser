@@ -63,7 +63,8 @@ export class Evaluator {
     const ga = this.computeGA(parsedMap, gtMap);
     const fga = this.computeFGA(parsedMap, gtMap);
     const pa = this.computePA(parsedMap, gtMap);
-    const { pta, rta, fta } = this.computeTemplateMetrics(parsed, groundTruth);
+    // Use drain-ts compatible token-level PTA (not template-ID-level)
+    const { pta, rta, fta } = this.computeTokenLevelPTA(parsed, groundTruth);
     const ned = this.computeNED(parsed, groundTruth, gtMap);
 
     return { ga, fga, pa, pta, rta, fta, ned };
@@ -170,23 +171,79 @@ export class Evaluator {
     return correct / parsedMap.size;
   }
 
-  /** Template-level precision, recall, and F1. */
-  private computeTemplateMetrics(
+  /**
+   * Token-level PTA/RTA/FTA — matches drain-ts's `calculateParsingTemplateAccuracy`.
+   *
+   * PTA = matching token positions / total token positions across all templates.
+   * A token matches if it's exactly equal OR both are masked parameter tokens.
+   *
+   * Reference: @agentix-e/drain-ts benchmark/evaluator.ts
+   */
+  private computeTokenLevelPTA(
     parsed: readonly ParsedLogEntry[],
     groundTruth: readonly GroundTruthEntry[],
   ): { pta: number; rta: number; fta: number } {
-    const parsedTemplateSet = new Set(parsed.map((p) => p.eventId));
-    const gtTemplateSet = new Set(groundTruth.map((g) => g.eventId));
+    if (groundTruth.length === 0) return { pta: 1, rta: 1, fta: 1 };
 
-    let matched = 0;
-    for (const pt of parsedTemplateSet) {
-      if (gtTemplateSet.has(pt)) matched++;
+    // Group by GT template ID → indices + tokens
+    const gtGroups = new Map<string, { indices: Set<number>; tokens: string[] }>();
+    for (let i = 0; i < groundTruth.length; i++) {
+      const g = groundTruth[i]!;
+      if (!gtGroups.has(g.eventId)) {
+        gtGroups.set(g.eventId, { indices: new Set(), tokens: g.template.split(/\s+/) });
+      }
+      gtGroups.get(g.eventId)!.indices.add(i);
     }
 
-    const pta = parsedTemplateSet.size > 0 ? matched / parsedTemplateSet.size : 0;
-    const rta = gtTemplateSet.size > 0 ? matched / gtTemplateSet.size : 0;
+    // Group by parser cluster → indices + tokens
+    const parsedClusters = new Map<string, { indices: Set<number>; tokens: string[] }>();
+    for (let i = 0; i < parsed.length; i++) {
+      const p = parsed[i]!;
+      if (!parsedClusters.has(p.eventId)) {
+        parsedClusters.set(p.eventId, { indices: new Set(), tokens: p.template.split(/\s+/) });
+      }
+      parsedClusters.get(p.eventId)!.indices.add(i);
+    }
+
+    let totalCorrect = 0;
+    let totalPositions = 0;
+
+    for (const [, gt] of gtGroups) {
+      const gtTokens = gt.tokens;
+      let bestOverlap = 0;
+      let bestParsedLen = 0;
+
+      for (const [, pc] of parsedClusters) {
+        if (gtTokens.length !== pc.tokens.length) continue;
+        let overlap = 0;
+        for (let j = 0; j < gtTokens.length; j++) {
+          const gtTok = gtTokens[j]!;
+          const pTok = pc.tokens[j]!;
+          if (gtTok === pTok || (this.isMaskedToken(gtTok) && this.isMaskedToken(pTok))) {
+            overlap++;
+          }
+        }
+        if (overlap > bestOverlap) {
+          bestOverlap = overlap;
+          bestParsedLen = pc.tokens.length;
+        }
+      }
+
+      if (bestParsedLen > 0) {
+        totalCorrect += bestOverlap;
+        totalPositions += gtTokens.length;
+      }
+    }
+
+    const pta = totalPositions > 0 ? totalCorrect / totalPositions : 0;
+    const rta = totalPositions > 0 ? totalCorrect / totalPositions : 0;
     const fta = pta + rta > 0 ? (2 * pta * rta) / (pta + rta) : 0;
     return { pta, rta, fta };
+  }
+
+  /** Returns true if a token is a masked parameter placeholder (matches drain-ts isMaskedToken). */
+  private isMaskedToken(token: string): boolean {
+    return token.startsWith('<') && token.endsWith('>') && token.length > 2;
   }
 
   /** Average normalized Levenshtein distance across all log-template pairs. */

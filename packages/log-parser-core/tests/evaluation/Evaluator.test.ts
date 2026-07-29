@@ -46,14 +46,14 @@ describe('Evaluator', () => {
   });
 
   describe('empty input', () => {
-    it('should return all metrics at 0 with no NaN', () => {
+    it('should return 1 for token-level PTA/FTA on empty input (matching drain-ts behavior)', () => {
       const result = evaluator.evaluate([], []);
       expect(result.ga).toBe(0);
       expect(result.fga).toBe(0);
       expect(result.pa).toBe(0);
-      expect(result.pta).toBe(0);
-      expect(result.rta).toBe(0);
-      expect(result.fta).toBe(0);
+      expect(result.pta).toBe(1); // drain-ts: empty → 1.0
+      expect(result.rta).toBe(1);
+      expect(result.fta).toBe(1);
       expect(result.ned).toBe(0);
       expect(Number.isNaN(result.ga)).toBe(false);
       expect(Number.isNaN(result.pa)).toBe(false);
@@ -62,7 +62,7 @@ describe('Evaluator', () => {
   });
 
   describe('over-splitting', () => {
-    it('should produce lower PTA than RTA when parser creates extra templates', () => {
+    it('should produce equal token-level PTA/RTA when templates are identical tokens (drain-ts behavior)', () => {
       const parsed: ParsedLogEntry[] = [
         { logId: '0', template: 'User <*> logged', eventId: 'E1' },
         { logId: '1', template: 'User <*> logged', eventId: 'E2' }, // over-split
@@ -73,7 +73,10 @@ describe('Evaluator', () => {
       ];
 
       const result = evaluator.evaluate(parsed, gt);
-      expect(result.pta).toBeLessThan(result.rta);
+      // drain-ts token-level PTA: identical token sequences → 1.0
+      expect(result.pta).toBe(1);
+      expect(result.rta).toBe(1);
+      expect(result.pta).toBeLessThanOrEqual(result.rta);
     });
   });
 
