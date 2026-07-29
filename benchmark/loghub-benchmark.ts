@@ -67,6 +67,7 @@ const DATASETS: DatasetDescriptor[] = [
     category: "Distributed Systems",
     targetGA: 0.990,
     targetPTA: 0.750,
+    skipRefinement: true,
   },
   {
     name: "Hadoop",
@@ -75,6 +76,7 @@ const DATASETS: DatasetDescriptor[] = [
     category: "Distributed Systems",
     targetGA: 0.940,
     targetPTA: 0.790,
+    skipRefinement: true,
     skipRefinement: true,
   },
   {
@@ -120,6 +122,7 @@ const DATASETS: DatasetDescriptor[] = [
     category: "Supercomputers",
     targetGA: 0.930,
     targetPTA: 0.850,
+    skipRefinement: true,
     skipRefinement: true,
   },
   {
@@ -189,6 +192,7 @@ const DATASETS: DatasetDescriptor[] = [
     category: "Mobile Systems",
     targetGA: 0.850,
     targetPTA: 0.750,
+    skipRefinement: true,
     skipRefinement: true,
   },
   {
