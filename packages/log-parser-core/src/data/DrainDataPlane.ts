@@ -270,6 +270,22 @@ export class DrainDataPlane {
   }
 
   /**
+   * Register an externally-extracted template (e.g., from LLM) back into
+   * the drain-ts prefix tree. Subsequent logs matching this template will
+   * hit drain directly, avoiding redundant LLM calls.
+   *
+   * This is the critical "feedback loop" from control plane → data plane.
+   */
+  registerTemplate(templateTokens: readonly string[]): number {
+    this.miner.drain.clustersCounter += 1;
+    const clusterId = this.miner.drain.clustersCounter;
+    const cluster = new LogCluster(templateTokens, clusterId);
+    this.miner.drain.idToCluster.set(clusterId, cluster);
+    this.miner.drain.addSeqToPrefixTree(this.miner.drain.rootNode, cluster);
+    return clusterId;
+  }
+
+  /**
    * Create a DrainDataPlane from a previously saved snapshot.
    */
   static fromSnapshot(snapshot: Uint8Array, config?: DrainDataPlaneConfig): DrainDataPlane {

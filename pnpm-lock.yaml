@@ -43,7 +43,7 @@ importers:
         version: 3.9.6
       tsup:
         specifier: ^8.0.0
-        version: 8.5.1(postcss@8.5.24)(tsx@4.23.1)(typescript@5.9.3)
+        version: 8.5.1(postcss@8.5.25)(tsx@4.23.1)(typescript@5.9.3)
       tsx:
         specifier: ^4.0.0
         version: 4.23.1
@@ -114,7 +114,7 @@ importers:
         version: 1.0.46(zod@3.25.76)
       ai:
         specifier: '>=5.0.52'
-        version: 7.0.40(zod@3.25.76)
+        version: 7.0.41(zod@3.25.76)
       zod:
         specifier: ^3.0.0
         version: 3.25.76
@@ -163,8 +163,8 @@ packages:
     resolution: {integrity: sha512-psH9uDu7BUgL1mAIUi9wqprHnJNPkp2AkC5vxiWRjRyeCO7ILD11Raw9LXvqSM8RIKmVjXYKogTVbPoFaZ4fUA==}
     engines: {node: '>=22.0.0', pnpm: '>=10.0.0'}
 
-  '@ai-sdk/gateway@4.0.30':
-    resolution: {integrity: sha512-nhgR5U6N0wRg+32Mnd8YrOknWQhWfn3ZAKhEOEf6u3dWzhNxTAAPIB7nnz5gRf8Us8K45yIsTrk0OtH897z7Mw==}
+  '@ai-sdk/gateway@4.0.31':
+    resolution: {integrity: sha512-gEBBUP7nyfQY+K+xFllYJ374RbJoRUa5RN2NyLPu12OfMv5U09kNzZTvBDHnqx78P/7qEELyIg9C5k+RPiBkjg==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -481,8 +481,8 @@ packages:
   '@fastify/fast-json-stringify-compiler@5.1.0':
     resolution: {integrity: sha512-PxcYtKLbQ8Z+yApiqjK8FwxIwvEj38k2OiLc17u8dkJSlmfi2wHHPaSnaoqBPQqtvF8YVsDgDpP2snDCfFrpfw==}
 
-  '@fastify/forwarded@3.0.1':
-    resolution: {integrity: sha512-JqDochHFqXs3C3Ml3gOY58zM7OqO9ENqPo0UqAjAjH8L01fRZqwX9iLeX34//kiJubF7r2ZQHtBRU36vONbLlw==}
+  '@fastify/forwarded@3.0.2':
+    resolution: {integrity: sha512-NE8HgKLgYejV9lDpqkEFaDKMLYelJBVfHekhB0UKvX0ghagXRJqg68feg8er1NPXxG4N9i6vPxzt8E+3wHfcmA==}
 
   '@fastify/merge-json-schemas@0.2.1':
     resolution: {integrity: sha512-OA3KGBCy6KtIvLf8DINC5880o5iBlDX4SxzLQS8HorJAbqluzLRn80UXU0bxZn7UOFhFgpRJDasfwn9nG4FG4A==}
@@ -876,8 +876,8 @@ packages:
     resolution: {integrity: sha512-RZNwNclF7+MS/8bDg70amg32dyeZGZxiDuQmZxKLAlQjr3jGyLx+4Kkk58UO7D2QdgFIQCovuSuZESne6RG6XQ==}
     engines: {node: '>= 6.0.0'}
 
-  ai@7.0.40:
-    resolution: {integrity: sha512-Q113Nory1PNgWzo2X7x/bUnJhd95UPNEtWlv+nnM5bSuEkA9iy+VZ3WZFcOvGMZjNDQzD5sZnJgIKQjGh8lv9Q==}
+  ai@7.0.41:
+    resolution: {integrity: sha512-GvV7uet1dz3wZFAnLd8rS+rSwIh57b8YvbV/gPaSxKsJkj1wGVnlWbu9pqKG3Op68/mglkz0lIkpsJXy2rBX1A==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -1707,8 +1707,8 @@ packages:
       yaml:
         optional: true
 
-  postcss@8.5.24:
-    resolution: {integrity: sha512-8RyVklq0owXUTa4xlpzu4l9AaVKIdQvAcOHZWaMh98HgySsUtxRVf/chRe3dsSLqb6i40BzGRzEUddRaI+9TSw==}
+  postcss@8.5.25:
+    resolution: {integrity: sha512-DTPx3RWSSnWyzLxQnlH0rJP+EW5ekl16ZU4/psbIhA0e53kJfdgaN5vKM+xP7yJtXVu+nfdVFmlgFDEKAe4Pyw==}
     engines: {node: ^10 || ^12 || >=14}
 
   postgres-array@2.0.0:
@@ -2231,7 +2231,7 @@ snapshots:
 
   '@agentix-e/drain-ts@1.1.0': {}
 
-  '@ai-sdk/gateway@4.0.30(zod@3.25.76)':
+  '@ai-sdk/gateway@4.0.31(zod@3.25.76)':
     dependencies:
       '@ai-sdk/provider': 4.0.4
       '@ai-sdk/provider-utils': 5.0.14(zod@3.25.76)
@@ -2466,7 +2466,7 @@ snapshots:
     dependencies:
       fast-json-stringify: 7.0.1
 
-  '@fastify/forwarded@3.0.1': {}
+  '@fastify/forwarded@3.0.2': {}
 
   '@fastify/merge-json-schemas@0.2.1':
     dependencies:
@@ -2474,7 +2474,7 @@ snapshots:
 
   '@fastify/proxy-addr@5.1.0':
     dependencies:
-      '@fastify/forwarded': 3.0.1
+      '@fastify/forwarded': 3.0.2
       ipaddr.js: 2.4.0
 
   '@humanfs/core@0.19.2':
@@ -2866,9 +2866,9 @@ snapshots:
       - supports-color
     optional: true
 
-  ai@7.0.40(zod@3.25.76):
+  ai@7.0.41(zod@3.25.76):
     dependencies:
-      '@ai-sdk/gateway': 4.0.30(zod@3.25.76)
+      '@ai-sdk/gateway': 4.0.31(zod@3.25.76)
       '@ai-sdk/provider': 4.0.4
       '@ai-sdk/provider-utils': 5.0.14(zod@3.25.76)
       zod: 3.25.76
@@ -3769,14 +3769,14 @@ snapshots:
       mlly: 1.8.2
       pathe: 2.0.3
 
-  postcss-load-config@6.0.1(postcss@8.5.24)(tsx@4.23.1):
+  postcss-load-config@6.0.1(postcss@8.5.25)(tsx@4.23.1):
     dependencies:
       lilconfig: 3.1.3
     optionalDependencies:
-      postcss: 8.5.24
+      postcss: 8.5.25
       tsx: 4.23.1
 
-  postcss@8.5.24:
+  postcss@8.5.25:
     dependencies:
       nanoid: 3.3.16
       picocolors: 1.1.1
@@ -4072,7 +4072,7 @@ snapshots:
 
   ts-interface-checker@0.1.13: {}
 
-  tsup@8.5.1(postcss@8.5.24)(tsx@4.23.1)(typescript@5.9.3):
+  tsup@8.5.1(postcss@8.5.25)(tsx@4.23.1)(typescript@5.9.3):
     dependencies:
       bundle-require: 5.1.0(esbuild@0.28.1)
       cac: 6.7.14
@@ -4083,7 +4083,7 @@ snapshots:
       fix-dts-default-cjs-exports: 1.0.1
       joycon: 3.1.1
       picocolors: 1.1.1
-      postcss-load-config: 6.0.1(postcss@8.5.24)(tsx@4.23.1)
+      postcss-load-config: 6.0.1(postcss@8.5.25)(tsx@4.23.1)
       resolve-from: 5.0.0
       rollup: 4.62.3
       source-map: 0.7.6
@@ -4092,7 +4092,7 @@ snapshots:
       tinyglobby: 0.2.17
       tree-kill: 1.2.2
     optionalDependencies:
-      postcss: 8.5.24
+      postcss: 8.5.25
       typescript: 5.9.3
     transitivePeerDependencies:
       - jiti
@@ -4168,7 +4168,7 @@ snapshots:
       esbuild: 0.28.1
       fdir: 6.5.0(picomatch@4.0.5)
       picomatch: 4.0.5
-      postcss: 8.5.24
+      postcss: 8.5.25
       rollup: 4.62.3
       tinyglobby: 0.2.17
     optionalDependencies:

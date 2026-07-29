@@ -12,7 +12,7 @@ import { ModelRouter } from '../control/ModelRouter.js';
 import { AdaptiveTemplateCache } from '../cache/AdaptiveTemplateCache.js';
 import { GranularityCalibrator } from '../granularity/GranularityCalibrator.js';
 import type { GranularityConfig } from '../granularity/GranularityDistance.js';
-import type { LogTemplate, LogParseResult, PipelineLayerConfig, PipelineStats } from './types.js';
+import type { LogParseResult, PipelineLayerConfig, PipelineStats } from './types.js';
 import { defaultPipelineConfig } from './types.js';
 
 /**
@@ -273,13 +273,18 @@ export class LogParserPipeline {
       }
       this.modelStats.set(modelId, existing);
 
-      // Step 5: Cache the extracted template
-      const template: LogTemplate = {
+      // Step 5: Cache the extracted template AND register it back to drain-ts.
+      // Registering back to drain-ts is critical: subsequent logs matching
+      // this template hit drain directly, avoiding redundant LLM calls.
+      // Without this, every occurrence of the same pattern triggers a new
+      // LLM invocation.
+      const templateTokens = result.template.split(/\s+/).filter(Boolean);
+      this.cache.put({
         id: `llm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         template: result.template,
-        tokens: result.template.split(/\s+/),
-      };
-      this.cache.put(template);
+        tokens: templateTokens,
+      });
+      this.drain.registerTemplate(templateTokens);
     }
   }
 
