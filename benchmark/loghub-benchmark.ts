@@ -48,6 +48,7 @@ interface DatasetDescriptor {
   enableAELSimilarity?: boolean;
   enableClusterMerge?: boolean;
   clusterMergePercent?: number;
+  maxDiffRatio?: number;
   /** Skip SynLogTemplateRefiner on this dataset (Drain already near-perfect). */
   skipRefinement?: boolean;
   regexCollapsePatterns?: ReadonlyArray<{
@@ -200,6 +201,7 @@ const DATASETS: DatasetDescriptor[] = [
     enableAELSimilarity: true,
     enableClusterMerge: true,
     clusterMergePercent: 0.4,
+    maxDiffRatio: 0.35,
     regexCollapsePatterns: [
       { regex: String.raw`<\d+\s+sec`, replacement: "<*>:<*>" },
       { regex: String.raw`\s*\(\d+\.\d+\s+KB\)`, replacement: "" },
@@ -630,6 +632,7 @@ async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
       drainExtraDelimiters: ds.drainExtraDelimiters ?? [],
       enableAdjacentFusion: ds.enableAdjacentFusion ?? false,
       enableAELSimilarity: ds.enableAELSimilarity ?? false,
+      maxDiffRatio: ds.maxDiffRatio,
       enableClusterMerge: ds.enableClusterMerge ?? false,
       clusterMergePercent: ds.clusterMergePercent,
       regexCollapsePatterns: ds.regexCollapsePatterns ?? [],
