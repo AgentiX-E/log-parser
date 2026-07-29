@@ -337,11 +337,14 @@ function isMaskedToken(token: string): boolean {
   return token.startsWith("<") && token.endsWith(">") && token.length > 2;
 }
 
-function evaluate(groundTruth: GroundTruthEntry[], parsed: ParsedEntry[]): EvaluationResult {
+/** drain-ts calculateGroupAccuracy — verbatim copy from drain-ts benchmark/evaluator.ts */
+function calculateGroupAccuracy(
+  groundTruth: GroundTruthEntry[],
+  parsed: ParsedEntry[],
+): { groupAccuracy: number; f1GroupAccuracy: number } {
   const n = groundTruth.length;
-  if (n === 0) return { groupAccuracy: 1, f1GroupAccuracy: 1, parsingTemplateAccuracy: 1, recallTemplateAccuracy: 1, f1TemplateAccuracy: 1, totalMessages: 0, groundTruthTemplateCount: 0, parserClusterCount: 0 };
+  if (n === 0) return { groupAccuracy: 1.0, f1GroupAccuracy: 1.0 };
 
-  // GA / FGA
   const gtGroups = new Map<number, Set<number>>();
   const parsedGroups = new Map<number, Set<number>>();
   for (let i = 0; i < n; i++) {
@@ -353,7 +356,8 @@ function evaluate(groundTruth: GroundTruthEntry[], parsed: ParsedEntry[]): Evalu
     parsedGroups.get(pId)!.add(i);
   }
 
-  let correctMessages = 0, f1PrecisionSum = 0, f1RecallSum = 0;
+  let correctMessages = 0;
+  let f1PrecisionSum = 0, f1RecallSum = 0;
   for (const [, gtIndices] of gtGroups) {
     let bestOverlap = 0;
     for (const [, pIndices] of parsedGroups) {
@@ -375,37 +379,91 @@ function evaluate(groundTruth: GroundTruthEntry[], parsed: ParsedEntry[]): Evalu
   }
 
   const ga = correctMessages / n;
-  const f1Precision = f1PrecisionSum / gtGroups.size;
-  const f1Recall = f1RecallSum / parsedGroups.size;
-  const fga = (2 * f1Precision * f1Recall) / (f1Precision + f1Recall) || 0;
+  const avgPrecision = f1PrecisionSum / gtGroups.size;
+  const avgRecall = f1RecallSum / parsedGroups.size;
+  const fga = avgPrecision + avgRecall > 0 ? (2 * avgPrecision * avgRecall) / (avgPrecision + avgRecall) : 0;
+  return { groupAccuracy: ga, f1GroupAccuracy: fga };
+}
 
-  // PTA / RTA / FTA (token-level)
-  let ptaMatches = 0, ptaTotalTokens = 0, ftaMatches = 0, ftaParserTokens = 0, ftaGtTokens = 0;
-  for (let i = 0; i < n; i++) {
-    const gtTok = groundTruth[i]!.templateTokens;
-    const pTok = parsed[i]!.templateTokens;
-    const maxLen = Math.max(gtTok.length, pTok.length);
-    ptaTotalTokens += maxLen;
-    let matchCount = 0;
-    for (let j = 0; j < maxLen; j++) {
-      if (j < gtTok.length && j < pTok.length) {
-        const g = gtTok[j]!;
-        const p = pTok[j]!;
-        if (g === p || (isMaskedToken(g) && isMaskedToken(p))) { matchCount++; ftaMatches++; }
-      }
+/** drain-ts calculateParsingTemplateAccuracy — verbatim copy */
+function calculateParsingTemplateAccuracy(
+  groundTruth: GroundTruthEntry[],
+  parsed: ParsedEntry[],
+): { parsingTemplateAccuracy: number; f1TemplateAccuracy: number } {
+  if (groundTruth.length === 0) return { parsingTemplateAccuracy: 1.0, f1TemplateAccuracy: 1.0 };
+
+  const gtTemplateToIndices = new Map<number, { indices: Set<number>; tokens: string[] }>();
+  for (let i = 0; i < groundTruth.length; i++) {
+    const gtId = groundTruth[i]!.templateId;
+    if (!gtTemplateToIndices.has(gtId)) {
+      gtTemplateToIndices.set(gtId, { indices: new Set(), tokens: groundTruth[i]!.templateTokens });
     }
-    ptaMatches += matchCount;
-    ftaParserTokens += pTok.length;
-    ftaGtTokens += gtTok.length;
+    gtTemplateToIndices.get(gtId)!.indices.add(i);
   }
 
-  const pta = ptaTotalTokens > 0 ? ptaMatches / ptaTotalTokens : 1;
-  const ftaPrecision = ftaParserTokens > 0 ? ftaMatches / ftaParserTokens : 0;
-  const ftaRecall = ftaGtTokens > 0 ? ftaMatches / ftaGtTokens : 0;
-  const rta = ftaRecall;
-  const fta = (2 * ftaPrecision * ftaRecall) / (ftaPrecision + ftaRecall) || 0;
+  const parsedClusterToInfo = new Map<number, { indices: Set<number>; tokens: string[] }>();
+  for (let i = 0; i < parsed.length; i++) {
+    const cId = parsed[i]!.clusterId;
+    if (!parsedClusterToInfo.has(cId)) {
+      parsedClusterToInfo.set(cId, { indices: new Set(), tokens: parsed[i]!.templateTokens });
+    }
+    parsedClusterToInfo.get(cId)!.indices.add(i);
+  }
 
-  return { groupAccuracy: ga, f1GroupAccuracy: fga, parsingTemplateAccuracy: pta, recallTemplateAccuracy: rta, f1TemplateAccuracy: fta, totalMessages: n, groundTruthTemplateCount: gtGroups.size, parserClusterCount: parsedGroups.size };
+  let totalCorrectTokens = 0, totalTokens = 0, f1PrecisionSum = 0, f1RecallSum = 0, matchedGtCount = 0;
+  for (const [, gtInfo] of gtTemplateToIndices) {
+    const gtTokens = gtInfo.tokens;
+    let bestOverlap = 0;
+    let bestParsedTokens: string[] | null = null;
+
+    for (const [, parsedInfo] of parsedClusterToInfo) {
+      const parsedTokens = parsedInfo.tokens;
+      if (gtTokens.length !== parsedTokens.length) continue;
+      let overlap = 0;
+      for (let j = 0; j < gtTokens.length; j++) {
+        const gtTok = gtTokens[j]!;
+        const parsedTok = parsedTokens[j]!;
+        if (gtTok === parsedTok || (isMaskedToken(gtTok) && isMaskedToken(parsedTok))) overlap++;
+      }
+      if (overlap > bestOverlap) { bestOverlap = overlap; bestParsedTokens = parsedTokens; }
+    }
+
+    if (bestParsedTokens && gtTokens.length > 0) {
+      totalCorrectTokens += bestOverlap;
+      totalTokens += gtTokens.length;
+      f1PrecisionSum += bestOverlap / bestParsedTokens.length;
+      f1RecallSum += bestOverlap / gtTokens.length;
+      matchedGtCount++;
+    }
+  }
+
+  const pta = totalTokens > 0 ? totalCorrectTokens / totalTokens : 0;
+  const fta = matchedGtCount > 0
+    ? (() => {
+        const avgP = f1PrecisionSum / matchedGtCount;
+        const avgR = f1RecallSum / matchedGtCount;
+        return avgP + avgR > 0 ? (2 * avgP * avgR) / (avgP + avgR) : 0;
+      })()
+    : 0;
+  return { parsingTemplateAccuracy: pta, f1TemplateAccuracy: fta };
+}
+
+/** drain-ts evaluate — verbatim copy */
+function evaluate(groundTruth: GroundTruthEntry[], parsed: ParsedEntry[]): EvaluationResult {
+  const ga = calculateGroupAccuracy(groundTruth, parsed);
+  const pa = calculateParsingTemplateAccuracy(groundTruth, parsed);
+  const groundTruthTemplateCount = new Set(groundTruth.map((e) => e.templateId)).size;
+  const parserClusterCount = new Set(parsed.map((e) => e.clusterId)).size;
+  return {
+    groupAccuracy: ga.groupAccuracy,
+    f1GroupAccuracy: ga.f1GroupAccuracy,
+    parsingTemplateAccuracy: pa.parsingTemplateAccuracy,
+    recallTemplateAccuracy: pa.parsingTemplateAccuracy,
+    f1TemplateAccuracy: pa.f1TemplateAccuracy,
+    totalMessages: groundTruth.length,
+    groundTruthTemplateCount,
+    parserClusterCount,
+  };
 }
 
 // ============================================================
