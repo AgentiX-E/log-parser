@@ -113,6 +113,13 @@ export class SynLogTemplateRefiner {
       return { refinedTemplate: drainTemplate, changed: false };
     }
 
+    // GUARD: If Drain's template already matches all group members,
+    // skip refinement entirely. SynLogPlus paper: only apply
+    // refinement when Drain got it wrong.
+    if (this.templateMatchesAllLogs(drainTemplate, logs)) {
+      return { refinedTemplate: drainTemplate, changed: false };
+    }
+
     // Step a: Sample 2 unique, representative log messages
     const unique = [...new Set(logs)];
     const samples = unique.slice(0, 2);
@@ -252,6 +259,26 @@ export class SynLogTemplateRefiner {
         return t;
       })
       .join('');
+  }
+
+  /**
+   * Guards against unnecessary refinement.
+   *
+   * If Drain's template already matches ALL log messages in the group
+   * (every constant token appears in every log), refinement cannot
+   * improve it and might regress. Skip early to preserve correct Drain output.
+   */
+  templateMatchesAllLogs(template: string, logs: readonly string[]): boolean {
+    if (logs.length === 0) return true;
+    const constantTokens = this.extractConstants(template);
+    if (constantTokens.length === 0) return true;
+
+    for (const log of logs) {
+      for (const token of constantTokens) {
+        if (!log.includes(token)) return false;
+      }
+    }
+    return true;
   }
 
   /**

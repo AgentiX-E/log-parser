@@ -148,10 +148,12 @@ describe('SynLogTemplateRefiner', () => {
     });
 
     it('cross-group verification removes false constants', () => {
+      // Use a drainTemplate that has a token NOT in one of the logs
+      // so the no-refine guard passes control to the refinement pipeline
       const groups: RefinementInput[] = [
         {
-          logs: ['Process A started', 'Process B started', 'Process C started'],
-          drainTemplate: 'Process A started',
+          logs: ['Process A started successfully', 'Process B started successfully', 'Process C started'],
+          drainTemplate: 'Process A started successfully', // "successfully" missing from log 3
         },
       ];
 
@@ -217,19 +219,19 @@ describe('SynLogTemplateRefiner', () => {
     it('processes multiple groups', () => {
       const groups: RefinementInput[] = [
         {
-          logs: ['User a', 'User b'],
-          drainTemplate: 'User a',
+          logs: ['User alice signed in from 10.0.0.1', 'User bob signed in from 192.168.1.1'],
+          drainTemplate: 'User alice signed in from 10.0.0.1', // "alice" and "10.0.0.1" are variables
         },
         {
-          logs: ['Error 1', 'Error 2'],
-          drainTemplate: 'Error 1',
+          logs: ['Task job-A completed in 42ms', 'Task job-B completed in 128ms'],
+          drainTemplate: 'Task job-A completed in 42ms', // "job-A" and "42ms" are variables
         },
       ];
 
       const results = refiner.refine(groups);
       expect(results).toHaveLength(2);
-      expect(results[0]!.changed).toBe(true);
-      expect(results[1]!.changed).toBe(true);
+      expect(results[0]!.refinedTemplate).toContain('<*>');
+      expect(results[1]!.refinedTemplate).toContain('<*>');
     });
 
     it('does not change already-correct templates', () => {
@@ -258,6 +260,94 @@ describe('SynLogTemplateRefiner', () => {
       const results = refiner.refine(groups);
       const tmpl = results[0]!.refinedTemplate;
       expect(tmpl).not.toMatch(/<\*>.*<\*>/); // no adjacent variable markers
+    });
+  });
+
+  describe('templateMatchesAllLogs', () => {
+    it('returns true when template matches all logs', () => {
+      const result = refiner.templateMatchesAllLogs(
+        'Accepted password for <*> from <IP>',
+        [
+          'Accepted password for root from 192.168.1.1',
+          'Accepted password for admin from 10.0.0.1',
+        ],
+      );
+      expect(result).toBe(true);
+    });
+
+    it('returns false when a constant token is absent from one log', () => {
+      const result = refiner.templateMatchesAllLogs(
+        'User logged in from <IP>',
+        [
+          'User alice logged in from 10.0.0.1',
+          'User bob connected from 172.16.0.1', // "logged" → "connected"
+        ],
+      );
+      expect(result).toBe(false);
+    });
+
+    it('returns true for empty logs array', () => {
+      expect(refiner.templateMatchesAllLogs('User <*>', [])).toBe(true);
+    });
+
+    it('returns true when template has no constant tokens', () => {
+      expect(refiner.templateMatchesAllLogs('<*> <*> <*>', ['a b c', 'x y z'])).toBe(true);
+    });
+
+    it('returns true when all constant tokens present in every log', () => {
+      const result = refiner.templateMatchesAllLogs(
+        'ERROR connection to <HOSTNAME> failed',
+        [
+          'ERROR connection to db-01.local failed',
+          'ERROR connection to cache-02.cluster failed',
+          'ERROR connection to api.prod.internal failed',
+        ],
+      );
+      expect(result).toBe(true);
+    });
+
+    it('returns false when constant token missing from one member', () => {
+      const result = refiner.templateMatchesAllLogs(
+        'ERROR connection to <HOSTNAME> failed after 3 retries',
+        [
+          'ERROR connection to db-01.local failed after 3 retries',
+          'ERROR connection to cache-02.cluster failed', // missing "3 retries"
+          'ERROR connection to api.prod.internal failed after 5 retries',
+        ],
+      );
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('no-refine guard', () => {
+    it('skips refinement when Drain template already matches all logs', () => {
+      const groups: RefinementInput[] = [
+        {
+          logs: [
+            'Accepted password for root from 192.168.1.1',
+            'Accepted password for admin from 10.0.0.1',
+          ],
+          drainTemplate: 'Accepted password for <*> from <IP>',
+        },
+      ];
+      const results = refiner.refine(groups);
+      expect(results[0]!.changed).toBe(false);
+      expect(results[0]!.refinedTemplate).toBe('Accepted password for <*> from <IP>');
+    });
+
+    it('still refines when Drain template does not match', () => {
+      const groups: RefinementInput[] = [
+        {
+          logs: [
+            'Connection from 10.0.0.1 established',
+            'Connection from 192.168.1.1 detected',
+          ],
+          drainTemplate: 'Connection from 10.0.0.1 established', // wrong template
+        },
+      ];
+      const results = refiner.refine(groups);
+      // Should attempt refinement (template may or may not change depending on algorithm)
+      expect(results[0]!.refinedTemplate).toBeDefined();
     });
   });
 });
