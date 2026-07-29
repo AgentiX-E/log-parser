@@ -77,8 +77,9 @@ export class SynLogTemplateRefiner {
     /(\b)(\/[\d+\w+\-_.#$]*[/.][\d+\w+\-_.#$/*]*)+(\b)/g,
     // Windows path: C:\Windows\System32
     /(\b)([a-zA-Z]:[/\\][\d+\w+\-_.#$\\/* ]*)(\b)/g,
-    // Hex strings: 0xdeadbeef, bare deadbeef (8+ hex chars)
-    /(\b)(0x)?[A-Fa-f0-9]{8,}(\b)/g,
+    // Hex strings: 0xdeadbeef, bare deadbeef (5+ hex chars)
+    // Matches Python's word_is_variable: (0x)?[A-Fa-f0-9]{5,}
+    /(\b)(0x)?[A-Fa-f0-9]{5,}(\b)/g,
     // UUID with dashes: 550e8400-e29b-41d4-a716-446655440000
     /(\b)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(\b)/gi,
   ];
@@ -133,7 +134,7 @@ export class SynLogTemplateRefiner {
     if (tokenized.length === 1) {
       template = this.refineSingle(tokenized[0]!);
     } else {
-      template = this.extractTemplate(tokenized[0]!, tokenized[1]!);
+      template = this.extractTemplate(tokenized[0]!, tokenized[1]!, drainTemplate);
     }
 
     // Step d: Anonymize only VARIABLE positions in the extracted template.
@@ -219,6 +220,11 @@ export class SynLogTemplateRefiner {
   isNumber(token: string): boolean {
     if (token.length === 0) return false;
 
+    // Handle 0x/0X hex prefix — matches Python's int(s, 0) auto-base-detection.
+    // Python's is_pure_number catches 0x-prefixed hex via int(s, 0).
+    // Without this, tokens like 0x1a2b3c are kept as templates on HPC/Hadoop logs.
+    if (/^[+-]?0[xX][0-9A-Fa-f]+$/.test(token)) return true;
+
     // Pure number: integer, float
     if (/^-?\d+\.?\d*$/.test(token)) return true;
 
@@ -270,21 +276,36 @@ export class SynLogTemplateRefiner {
   }
 
   /**
-   * Extract template by comparing two token sequences.
-   * Constants = tokens present in BOTH sequences in the same sequential order.
-   * Variables = tokens present in only one sequence.
+   * Extract template by comparing two token sequences against the Drain template.
+   *
+   * Mirrors Python's extract_template() multi-tier confidence system:
+   * 1. Common variable literals → <*> immediately
+   * 2. Delimiters → kept as-is
+   * 3. Found in both → check Drain template:
+   *    a. In Drain template → high confidence constant → kept
+   *    b. Matches variable heuristics → <*> (Python's word_is_variable)
+   *    c. None of the above → moderate confidence constant → kept
+   * 4. Not found in both → <*>
+   *
+   * @param short - Tokens from the shorter/anonymized log
+   * @param long  - Tokens from the longer/anonymized log
+   * @param drainTemplate - The original Drain cluster template for reference
    */
-  private extractTemplate(short: string[], long: string[]): string {
+  private extractTemplate(
+    short: string[],
+    long: string[],
+    drainTemplate: string,
+  ): string {
     const template: string[] = [];
     let lastIdx = -1;
 
     for (const word of short) {
-      // Common variable literals → variable
+      // Common variable literals → variable (Python line 498)
       if (SynLogTemplateRefiner.COMMON_VARIABLES.has(word.toLowerCase())) {
         template.push('<*>');
         continue;
       }
-      // Delimiters → keep as-is
+      // Delimiters → keep as-is (Python line 503-507)
       if (SynLogTemplateRefiner.DELIMITERS.has(word)) {
         template.push(word);
         lastIdx = -1;
@@ -293,21 +314,51 @@ export class SynLogTemplateRefiner {
       // Try to find word in long after last match position
       const idx = long.indexOf(word, lastIdx + 1);
       if (idx !== -1 && word === long[idx]) {
-        template.push(word);
+        // Python line 510: word in "".join(templ) — Drain template reference
+        if (drainTemplate.includes(word)) {
+          // In Drain template → high confidence constant
+          template.push(word);
+        }
+        // Python lines 519-526: word_is_variable check for non-Drain matches
+        else if (this.isWordVariable(word)) {
+          template.push('<*>');
+        }
+        // Python line 528: default — keep as constant
+        else {
+          template.push(word);
+        }
         lastIdx = idx;
       } else {
+        // Python line 532: not found in both → variable
         template.push('<*>');
       }
     }
     return template.join('');
   }
 
+  /**
+   * Check if a token matches Python's word_is_variable heuristics
+   * (patterns at DrainPlus.py line 346-349, plus COMMON_VARIABLES and isNumber).
+   *
+   * Python checks: time (HH:MM), date, IPs, hex 5+, hostname:port.
+   * These cover the patterns that Python applies in extract_template
+   * when a matched word is NOT in the Drain template.
+   */
+  private isWordVariable(word: string): boolean {
+    if (SynLogTemplateRefiner.COMMON_VARIABLES.has(word.toLowerCase())) return true;
+    if (this.isNumber(word)) return true;
+    for (const pattern of SynLogTemplateRefiner.VARIABLE_PATTERNS) {
+      pattern.lastIndex = 0;
+      if (pattern.test(word)) return true;
+    }
+    return false;
+  }
+
   /** Refine a single-sample group using only regex + heuristics. */
   private refineSingle(tokens: string[]): string {
     return tokens
       .map((t) => {
-        if (SynLogTemplateRefiner.COMMON_VARIABLES.has(t.toLowerCase())) return '<*>';
-        if (this.isNumber(t)) return '<*>';
+        if (this.isWordVariable(t)) return '<*>';
         return t;
       })
       .join('');
@@ -371,6 +422,30 @@ export class SynLogTemplateRefiner {
       }
     }
     return [...tokens];
+  }
+
+  /**
+   * Generate a deterministic 64-bit hash for a template string.
+   *
+   * ByteBrain (SIGMOD'25) uses hash encoding instead of ordinal
+   * encoding for storage-efficient template identity comparison.
+   * This avoids token-to-ID lookup tables.
+   *
+   * Uses two independent 32-bit hashes (Murmur-inspired mixing)
+   * combined into a 16-char hex string.
+   */
+  static hashTemplate(template: string): string {
+    let h1 = 0xdeadbeef;
+    let h2 = 0x41c6ce57;
+    for (let i = 0; i < template.length; i++) {
+      const ch = template.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 0x85ebca6b);
+      h2 = Math.imul(h2 ^ ch, 0xc2b2ae35);
+    }
+    return (
+      (h1 >>> 0).toString(16).padStart(8, '0') +
+      (h2 >>> 0).toString(16).padStart(8, '0')
+    );
   }
 
   /**

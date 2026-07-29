@@ -291,4 +291,24 @@ describe('SynLogTemplateRefiner', () => {
       expect(tmpl).not.toMatch(/<\*>.*<\*>/); // no adjacent variable markers
     });
   });
+
+  describe('hashTemplate', () => {
+    it('produces deterministic hash for same template', () => {
+      const h1 = SynLogTemplateRefiner.hashTemplate('User <*> logged in from <IP>');
+      const h2 = SynLogTemplateRefiner.hashTemplate('User <*> logged in from <IP>');
+      expect(h1).toBe(h2);
+      expect(h1).toHaveLength(16);
+    });
+
+    it('produces different hashes for different templates', () => {
+      const h1 = SynLogTemplateRefiner.hashTemplate('User <*> logged in');
+      const h2 = SynLogTemplateRefiner.hashTemplate('ERROR <*> connection failed');
+      expect(h1).not.toBe(h2);
+    });
+
+    it('handles empty template', () => {
+      const hash = SynLogTemplateRefiner.hashTemplate('');
+      expect(hash).toHaveLength(16);
+    });
+  });
 });
