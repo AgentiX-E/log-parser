@@ -113,6 +113,11 @@ export class SynLogTemplateRefiner {
       return { refinedTemplate: drainTemplate, changed: false };
     }
 
+    // Skip tiny clusters — too few samples for reliable comparison
+    if (logs.length <= 3) {
+      return { refinedTemplate: drainTemplate, changed: false };
+    }
+
     // Step a: Sample 2 unique, representative log messages
     const unique = [...new Set(logs)];
     const samples = unique.slice(0, 2);
@@ -271,12 +276,16 @@ export class SynLogTemplateRefiner {
     const constantTokens = this.extractConstants(template);
     if (constantTokens.length === 0) return template;
 
+    // Skip short tokens — single/double-char matches are false positives
+    const validTokens = constantTokens.filter((t) => t.length > 2);
+    if (validTokens.length === 0) return template;
+
     // Phase 2: For each constant token, count presence across group members.
     // Token survives only if present in ≥90% of logs.
     const threshold = Math.max(1, Math.floor(groupLogs.length * 0.9));
     const removals = new Set<string>();
 
-    for (const token of constantTokens) {
+    for (const token of validTokens) {
       let present = 0;
       for (const log of groupLogs) {
         if (log.includes(token)) present++;

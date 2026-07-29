@@ -125,7 +125,12 @@ describe('SynLogTemplateRefiner', () => {
     it('extracts template with user and IP variables', () => {
       const groups: RefinementInput[] = [
         {
-          logs: ['User alice logged in from 192.168.1.1', 'User bob logged in from 10.0.0.1'],
+          logs: [
+            'User alice logged in from 192.168.1.1',
+            'User bob logged in from 10.0.0.1',
+            'User carol logged in from 172.16.0.1',
+            'User dave logged in from 8.8.8.8',
+          ],
           drainTemplate: 'User alice logged in from 192.168.1.1',
         },
       ];
@@ -138,7 +143,7 @@ describe('SynLogTemplateRefiner', () => {
     it('identifies common variable literals', () => {
       const groups: RefinementInput[] = [
         {
-          logs: ['Status: true', 'Status: false'],
+          logs: ['Status: true', 'Status: false', 'Status: true', 'Status: false'],
           drainTemplate: 'Status: true',
         },
       ];
@@ -150,7 +155,12 @@ describe('SynLogTemplateRefiner', () => {
     it('cross-group verification removes false constants', () => {
       const groups: RefinementInput[] = [
         {
-          logs: ['Process A started', 'Process B started', 'Process C started'],
+          logs: [
+            'Process A started',
+            'Process B started',
+            'Process C started',
+            'Process D started',
+          ],
           drainTemplate: 'Process A started',
         },
       ];
@@ -177,6 +187,8 @@ describe('SynLogTemplateRefiner', () => {
           logs: [
             'ERROR db01 disconnected after 5 retries',
             'ERROR db02 disconnected after 3 retries',
+            'ERROR db03 disconnected after 7 retries',
+            'ERROR db04 disconnected after 2 retries',
           ],
           drainTemplate: 'ERROR db01 disconnected after 5 retries',
         },
@@ -191,7 +203,7 @@ describe('SynLogTemplateRefiner', () => {
     it('preserves static delimiters', () => {
       const groups: RefinementInput[] = [
         {
-          logs: ['key=value:100', 'key=other:200'],
+          logs: ['key=value:100', 'key=other:200', 'key=third:300', 'key=fourth:400'],
           drainTemplate: 'key=value:100',
         },
       ];
@@ -217,11 +229,11 @@ describe('SynLogTemplateRefiner', () => {
     it('processes multiple groups', () => {
       const groups: RefinementInput[] = [
         {
-          logs: ['User a', 'User b'],
+          logs: ['User a', 'User b', 'User c', 'User d'],
           drainTemplate: 'User a',
         },
         {
-          logs: ['Error 1', 'Error 2'],
+          logs: ['Error 1', 'Error 2', 'Error 3', 'Error 4'],
           drainTemplate: 'Error 1',
         },
       ];
@@ -235,13 +247,32 @@ describe('SynLogTemplateRefiner', () => {
     it('does not change already-correct templates', () => {
       const groups: RefinementInput[] = [
         {
-          logs: ['System started successfully', 'System started successfully'],
+          logs: [
+            'System started successfully',
+            'System started successfully',
+            'System started successfully',
+            'System started successfully',
+          ],
           drainTemplate: 'System started successfully',
         },
       ];
 
       const results = refiner.refine(groups);
       expect(results[0]!.changed).toBe(false);
+    });
+
+    it('skips short constant tokens in cross-group verification', () => {
+      // Template with constants ≤ 2 chars — verifier should skip them
+      const groups: RefinementInput[] = [
+        {
+          logs: ['A B C D message', 'A B E F message', 'A B G H message', 'A B I J message'],
+          drainTemplate: 'A B C D message',
+        },
+      ];
+
+      const results = refiner.refine(groups);
+      // Short tokens "A", "B" should be skipped; only "message" is long enough
+      expect(results[0]!.refinedTemplate).toContain('message');
     });
   });
 
@@ -250,7 +281,7 @@ describe('SynLogTemplateRefiner', () => {
       // Test indirectly through refine which calls postProcess
       const groups: RefinementInput[] = [
         {
-          logs: ['a b c d e', 'x y z w v'],
+          logs: ['a b c d e', 'x y z w v', 'q r s t u', 'm n o p q'],
           drainTemplate: 'a b c d e',
         },
       ];
