@@ -517,14 +517,28 @@ async function downloadAndExtractZip(
     ? path.join(cacheDir, datasetName)
     : path.join(os.tmpdir(), `loghub-full-${datasetName}-${Date.now()}`);
 
-  // Check if already extracted
+  // Helper: find _structured.csv recursively
   const csvPattern = /_structured\.csv$/;
-  if (fs.existsSync(workDir)) {
-    const existing = fs.readdirSync(workDir).find((f) => csvPattern.test(f));
-    if (existing) {
-      console.log(`  Using cached extraction: ${path.join(workDir, existing)}`);
-      return path.join(workDir, existing);
+  function findCsv(dir: string): string | null {
+    if (!fs.existsSync(dir)) return null;
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        const found = findCsv(full);
+        if (found) return found;
+      } else if (csvPattern.test(entry.name)) {
+        return full;
+      }
     }
+    return null;
+  }
+
+  // Check if already extracted
+  const existing = findCsv(workDir);
+  if (existing) {
+    console.log(`  Using cached extraction: ${existing}`);
+    return existing;
   }
 
   // Download zip
@@ -548,12 +562,20 @@ async function downloadAndExtractZip(
     throw new Error(`Failed to unzip ${zipPath}: ${e.message}`);
   }
 
-  // Find the structured CSV file
-  const extracted = fs.readdirSync(workDir);
-  const csvFile = extracted.find((f) => csvPattern.test(f));
+  // Find the structured CSV file (recursively, handles nested directories)
+  const csvFile = findCsv(workDir);
   if (!csvFile) {
     // List extracted files for debugging
-    console.error(`  Extracted files: ${extracted.join(', ')}`);
+    const allFiles: string[] = [];
+    function listAll(dir: string) {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        allFiles.push(full);
+        if (entry.isDirectory()) listAll(full);
+      }
+    }
+    listAll(workDir);
+    console.error(`  Extracted files: ${allFiles.map((f) => path.relative(workDir, f)).join(', ')}`);
     throw new Error(
       `No _structured.csv found in extracted zip for ${datasetName}`,
     );
