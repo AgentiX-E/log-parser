@@ -895,6 +895,7 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const isAll = args.includes('--all');
   const isList = args.includes('--list');
+  const isLLM = args.includes('--llm');
   const dataDirIdx = args.indexOf('--data-dir');
   const dataDir = dataDirIdx >= 0 ? args[dataDirIdx + 1] : null;
   const datasetIdx = args.indexOf('--dataset');
@@ -933,6 +934,7 @@ async function main(): Promise<void> {
     console.log('Options:');
     console.log('  --dataset <name>   Run a single full dataset (e.g., Linux, Zookeeper)');
     console.log('  --all              Run all 14 full datasets (requires ~55GB+ storage)');
+    console.log('  --llm              Enable LLM-enhanced mode (adaptive batch refinement)');
     console.log('  --list             List all available datasets with sizes');
     console.log('  --data-dir <dir>   Cache downloads to directory (default: no cache)');
     console.log('');
