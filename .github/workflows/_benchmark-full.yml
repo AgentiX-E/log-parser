@@ -1,0 +1,38 @@
+name: Benchmark Full (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      dataset:
+        required: true
+        type: string
+        description: 'Dataset name (Proxifier, HDFS, Spark, etc.)'
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      - name: Run full benchmark
+        run: |
+          NODE_OPTIONS="--max-old-space-size=8192" \
+          npx tsx benchmark/loghub-full.ts --dataset ${{ inputs.dataset }} \
+            2>&1 | tee /tmp/bench-${{ inputs.dataset }}.txt
+
+      - name: Upload benchmark result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-full-${{ inputs.dataset }}
+          path: /tmp/bench-${{ inputs.dataset }}.txt
+          retention-days: 90

@@ -2,82 +2,134 @@ name: Benchmark Full
 
 on:
   workflow_dispatch:
-    inputs:
-      dataset:
-        description: 'Dataset name (empty = all 14, "Linux" = CI-compatible default)'
-        required: false
-        default: 'Linux'
+  schedule:
+    - cron: '0 2 * * 1'  # Every Monday 02:00 UTC
 
 permissions:
   contents: read
   pages: write
   id-token: write
 
-concurrency:
-  group: "pages-full"
-  cancel-in-progress: false
-
 jobs:
-  benchmark-full:
+  # ─── Small datasets ──────────────────────────────────────────
+  Proxifier:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: Proxifier
+
+  Linux:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: Linux
+
+  Apache:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: Apache
+
+  Zookeeper:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: Zookeeper
+
+  Mac:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: Mac
+
+  HealthApp:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: HealthApp
+
+  Hadoop:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: Hadoop
+
+  # ─── Medium datasets ─────────────────────────────────────────
+  OpenStack:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: OpenStack
+
+  HPC:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: HPC
+
+  OpenSSH:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: OpenSSH
+
+  BGL:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: BGL
+
+  # ─── Large datasets ──────────────────────────────────────────
+  Spark:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: Spark
+
+  HDFS:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: HDFS
+
+  Thunderbird:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: Thunderbird
+
+  # ─── Aggregate and deploy ────────────────────────────────────
+  report:
+    needs: [Proxifier,Linux,Apache,Zookeeper,Mac,HealthApp,Hadoop,
+            OpenStack,HPC,OpenSSH,BGL,Spark,HDFS,Thunderbird]
     runs-on: ubuntu-latest
-    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
         with:
-          node-version: '22'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build
-        run: pnpm build
-
-      - name: Run Full benchmark
-        env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-        run: |
-          mkdir -p docs/full
-          if [ -z "${{ github.event.inputs.dataset }}" ]; then
-            npx tsx benchmark/loghub-full.ts --all 2>&1 | tee docs/full/results.txt
-          else
-            npx tsx benchmark/loghub-full.ts --dataset "${{ github.event.inputs.dataset }}" 2>&1 | tee docs/full/results.txt
-          fi
-
+          path: /tmp/results
       - name: Generate HTML report
         run: |
+          mkdir -p docs/full
           cat > docs/full/index.html << 'HTMLEOF'
-          <!DOCTYPE html>
-          <html lang="en">
-          <head>
-          <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-          <title>Log-Parser Full Benchmark</title>
+          <!DOCTYPE html><html lang="en">
+          <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+          <title>Log-Parser LogHub Full Benchmark</title>
           <style>
           :root{--bg:#fff;--fg:#1a1a2e;--accent:#2563eb;--bdr:#e5e7eb;--green:#059669;--red:#dc2626;--muted:#6b7280}
           @media(prefers-color-scheme:dark){:root{--bg:#0f172a;--fg:#e2e8f0;--accent:#60a5fa;--bdr:#334155;--green:#34d399;--red:#f87171;--muted:#94a3b8}}
-          body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--fg);margin:0;padding:2rem;max-width:1200px;margin:auto}
-          h1{font-size:1.5rem;border-bottom:2px solid var(--accent);padding-bottom:.5rem}
-          pre{background:var(--bdr);padding:1rem;border-radius:6px;overflow-x:auto;font-size:.85rem;line-height:1.5}
-          .meta{color:var(--muted);font-size:.85rem;margin-bottom:2rem}
-          </style></head>
-          <body>
+          *{box-sizing:border-box}body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--fg);margin:2rem auto;padding:0 1rem;max-width:1200px}
+          h1{border-bottom:2px solid var(--accent);padding-bottom:.5rem}
+          table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.9rem}
+          th,td{text-align:right;padding:.5rem .75rem;border-bottom:1px solid var(--bdr)}
+          th:first-child,td:first-child{text-align:left}
+          th{background:var(--bdr);font-weight:600}
+          td:first-child{font-weight:500}
+          .pass{color:var(--green)}.fail{color:var(--red)}.meta{color:var(--muted);font-size:.85rem}
+          </style></head><body>
           <h1>Log-Parser LogHub Full Benchmark</h1>
-          <p class="meta">Generated: $(date -u +"%Y-%m-%dT%H:%M:%SZ") · Dataset: ${{ github.event.inputs.dataset || 'all' }}</p>
-          <pre>$(cat docs/full/results.txt)</pre>
-          </body></html>
+          <p class="meta">Generated: $(date -u +"%Y-%m-%dT%H:%M:%SZ") · drain-only mode · 14 datasets parallel · <a href="/log-parser/">← back to benchmarks</a></p>
+          <table><thead><tr><th>Dataset</th><th>Messages</th><th>GA</th><th>FGA</th><th>PTA</th><th>FTA</th><th>Time</th></tr></thead><tbody>
+          $(for f in /tmp/results/benchmark-full-*/bench-*.txt; do
+            awk '/^  [A-Z]/ {printf "<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>\n",
+              $1,$2,$3,$4,$5,$6,$7}' "$f" 2>/dev/null
+          done)
+          </tbody></table></body></html>
           HTMLEOF
-
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: docs
 
   deploy:
-    needs: benchmark-full
+    needs: report
     runs-on: ubuntu-latest
     environment:
       name: github-pages
