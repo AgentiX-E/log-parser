@@ -1,0 +1,94 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Stage 1 — Quality Gates
+  # ═══════════════════════════════════════════════════════════════════════════
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm test:coverage
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Stage 2 — Publish npm Packages (OIDC + provenance)
+  # ═══════════════════════════════════════════════════════════════════════════
+  publish-npm:
+    needs: quality
+    if: ${{ !cancelled() && needs.quality.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      # npm 11.x (bundled with Node 24) natively supports OIDC token for
+      # npm publish. Node 22 + npm 10.x uses .npmrc authToken and will E404.
+      - name: Publish all packages to npm (OIDC + provenance)
+        run: |
+          PKGS=(
+            packages/log-parser-core
+            packages/log-parser-node
+            packages/log-parser-browser
+            packages/log-parser-llm
+            packages/log-parser-webllm
+            packages/log-parser-cli
+            packages/log-parser-server
+          )
+          for pkg in "${PKGS[@]}"; do
+            cd "${pkg}"
+            PKG_NAME=$(node -p "require('./package.json').name")
+            PKG_VER=$(node -p "require('./package.json').version")
+            if npm view "${PKG_NAME}@${PKG_VER}" version >/dev/null 2>&1; then
+              echo "⚠ ${PKG_NAME}@${PKG_VER} already published — skipping"
+              cd "$OLDPWD"
+              continue
+            fi
+            npm publish --access public --provenance
+            cd "$OLDPWD"
+          done
+
+      - name: npm publish summary
+        run: |
+          echo "### 📦 npm Packages Published" >> $GITHUB_STEP_SUMMARY
+          echo "| Package | Version |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|---------|" >> $GITHUB_STEP_SUMMARY
+          for pkg in packages/log-parser-core packages/log-parser-node packages/log-parser-browser packages/log-parser-llm packages/log-parser-webllm packages/log-parser-cli packages/log-parser-server; do
+            name=$(node -p "require('./${pkg}/package.json').name")
+            version=$(node -p "require('./${pkg}/package.json').version")
+            echo "| \`${name}\` | ${version} |" >> $GITHUB_STEP_SUMMARY
+          done

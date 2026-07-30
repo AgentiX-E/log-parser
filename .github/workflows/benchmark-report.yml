@@ -19,9 +19,9 @@ jobs:
   benchmark-2k:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: 'pnpm'
@@ -42,9 +42,9 @@ jobs:
     needs: benchmark-2k
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: 'pnpm'
@@ -136,9 +136,13 @@ jobs:
   pages:
     needs: [report-2k, Proxifier,Linux,Apache,Zookeeper,Mac,HealthApp,Hadoop,
             OpenStack,HPC,OpenSSH,BGL,Spark,HDFS,Thunderbird]
+    if: |
+      !cancelled() &&
+      (needs.report-2k.result == 'success' || needs.report-2k.result == 'skipped') &&
+      (needs.Proxifier.result == 'success' || needs.Proxifier.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Download 2k report
         uses: actions/download-artifact@v4
@@ -150,6 +154,8 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: /tmp/full-results
+        continue-on-error: true
+        continue-on-error: true
 
       - name: Generate Full HTML report
         run: |
@@ -208,6 +214,9 @@ jobs:
 
   deploy:
     needs: pages
+    if: |
+      !cancelled() &&
+      (needs.pages.result == 'success' || needs.pages.result == 'skipped')
     runs-on: ubuntu-latest
     environment:
       name: github-pages

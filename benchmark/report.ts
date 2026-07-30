@@ -3,6 +3,9 @@
  * LogHub-2k benchmark HTML report generator.
  * Uses IDENTICAL evaluation logic as the main benchmark via shared exports.
  * Generates a self-contained HTML page with comparison tables and LLM cost analysis.
+ *
+ * Graceful degradation: per-dataset API failures (rate limits, timeouts) are
+ * caught individually — partial results are rendered with error annotations.
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -20,20 +23,56 @@ const DRAIN_TS_RESULTS: Record<string, { ga: number; pta: number }> = {
   HealthApp: { ga: 1.0000, pta: 0.8794 }, Proxifier: { ga: 0.9795, pta: 0.7750 },
 };
 
+interface ResultRow extends BenchmarkRow {
+  error?: string;
+}
+
 async function main() {
-  const rows: BenchmarkRow[] = [];
+  const rows: ResultRow[] = [];
+  const errors: string[] = [];
   let totalLLM = 0, totalTokens = 0;
 
   for (const ds of DATASETS) {
-    const row = await runDataset(ds);
-    rows.push(row);
-    if (row.llmCalls) { totalLLM += row.llmCalls; totalTokens += row.llmTokens; }
+    try {
+      const row = await runDataset(ds);
+      rows.push(row);
+      if (row.llmCalls) { totalLLM += row.llmCalls; totalTokens += row.llmTokens; }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push(`${ds.name}: ${msg}`);
+      console.error(`[ERROR] ${ds.name}: ${msg}`);
+      // Push a placeholder row so the table is complete
+      rows.push({
+        dataset: ds.name,
+        category: ds.category,
+        ga: 0, fga: 0, pta: 0, rta: 0, fta: 0,
+        gaPass: false, ptaPass: false,
+        refinedPta: 0, refinedRta: 0, refinedFta: 0,
+        refinedPtaPass: false,
+        llmCalls: 0, llmTokens: 0,
+        error: msg,
+      } as ResultRow);
+    }
   }
 
-  const avgDrainGa = rows.reduce((s, r) => s + r.ga, 0) / rows.length;
-  const avgRefinedPta = rows.reduce((s, r) => s + r.refinedPta, 0) / rows.length;
-  const refinedPtaPass = rows.filter(r => r.refinedPtaPass).length;
-  const improved = rows.filter(r => r.refinedPta > r.pta).length;
+  if (rows.length === 0) {
+    console.error("No datasets processed — all failed.");
+    process.exit(1);
+  }
+
+  const successRows = rows.filter(r => !r.error);
+  const avgDrainGa = successRows.length > 0
+    ? successRows.reduce((s, r) => s + r.ga, 0) / successRows.length
+    : 0;
+  const avgRefinedPta = successRows.length > 0
+    ? successRows.reduce((s, r) => s + r.refinedPta, 0) / successRows.length
+    : 0;
+  const refinedPtaPass = successRows.filter(r => r.refinedPtaPass).length;
+  const improved = successRows.filter(r => r.refinedPta > r.pta).length;
+
+  const errorBanner = errors.length > 0
+    ? `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:1rem;margin-bottom:1rem;color:#991b1b;font-size:.875rem"><strong>⚠ ${errors.length} dataset(s) failed</strong> — results may be incomplete.<br>${errors.map(e => `· ${e}`).join('<br>')}</div>`
+    : '';
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -55,7 +94,7 @@ h1{font-size:1.75rem;margin-bottom:.25rem}h2{font-size:1.25rem;margin:1.5rem 0 .
 table{width:100%;border-collapse:collapse;font-size:.8125rem;margin-bottom:1rem}
 th,td{padding:.5rem .625rem;text-align:left;border-bottom:1px solid var(--bdr)}
 th{background:var(--card);font-weight:600}tr:hover{background:var(--card)}
-.pass{color:var(--green);font-weight:700}.fail{color:var(--red)}.pos{color:var(--green)}.neg{color:var(--red)}
+.pass{color:var(--green);font-weight:700}.fail{color:var(--red)}.pos{color:var(--green)}.neg{color:var(--red)}.error-row{background:#fef2f2}
 footer{text-align:center;color:var(--muted);font-size:.75rem;margin-top:2rem;padding-top:1rem;border-top:1px solid var(--bdr)}
 @media(max-width:768px){body{padding:1rem}table{font-size:.6875rem}}
 </style>
@@ -63,11 +102,12 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;margin-top:2rem;pad
 <body>
 <h1>Log-Parser Benchmark Report</h1>
 <p class="subtitle">LogHub-2k — 16 datasets, 32,000 logs | ${new Date().toISOString().split('T')[0]} | drain-ts v1.1.0 comparison</p>
+${errorBanner}
 <div class="summary">
 <div class="card"><div class="value">${(avgDrainGa * 100).toFixed(1)}%</div><div class="label">Avg GA</div></div>
 <div class="card"><div class="value">${(avgRefinedPta * 100).toFixed(1)}%</div><div class="label">Avg PTA (Enhanced)</div></div>
-<div class="card"><div class="value">${refinedPtaPass}/16</div><div class="label">PTA Pass Rate</div></div>
-<div class="card"><div class="value">${improved}/16</div><div class="label">Datasets Improved</div></div>
+<div class="card"><div class="value">${refinedPtaPass}/${successRows.length}</div><div class="label">PTA Pass Rate</div></div>
+<div class="card"><div class="value">${improved}/${successRows.length}</div><div class="label">Datasets Improved</div></div>
 <div class="card"><div class="value">${totalLLM}</div><div class="label">LLM Calls</div></div>
 <div class="card"><div class="value">${(totalTokens / 1000).toFixed(0)}K</div><div class="label">Tokens</div></div>
 </div>
@@ -76,6 +116,9 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;margin-top:2rem;pad
 <thead><tr><th>Dataset</th><th>drain-ts GA</th><th>drain-ts PTA</th><th>LP Drain GA</th><th>LP Drain PTA</th><th>LP Enhanced PTA</th><th>vs drain-ts</th><th>LLM</th></tr></thead>
 <tbody>
 ${rows.map(r => {
+  if (r.error) {
+    return `<tr class="error-row"><td><strong>${r.dataset}</strong></td><td colspan="6" style="color:var(--red)">ERROR: ${r.error}</td><td>—</td></tr>`;
+  }
   const ref = DRAIN_TS_RESULTS[r.dataset] ?? { ga: 0, pta: 0 };
   const d = r.refinedPta - ref.pta;
   const cls = d >= 0 ? 'pos' : 'neg';
@@ -92,15 +135,16 @@ ${rows.map(r => {
 <table>
 <thead><tr><th>Dataset</th><th>Calls</th><th>Tokens</th><th>Est. Cost (DeepSeek)</th></tr></thead>
 <tbody>
-${rows.filter(r=>r.llmCalls>0).map(r =>
+${rows.filter(r=>!r.error && r.llmCalls>0).map(r =>
   `<tr><td><strong>${r.dataset}</strong></td><td>${r.llmCalls}</td><td>${r.llmTokens.toLocaleString()}</td><td>$${(r.llmTokens*1.4e-6).toFixed(4)}</td></tr>`
 ).join('\n')}
-<tr style="font-weight:700"><td>TOTAL</td><td>${totalLLM}</td><td>${totalTokens.toLocaleString()}</td><td>$${(totalTokens*1.4e-6).toFixed(4)}</td></tr>
+${totalLLM > 0 ? `<tr style="font-weight:700"><td>TOTAL</td><td>${totalLLM}</td><td>${totalTokens.toLocaleString()}</td><td>$${(totalTokens*1.4e-6).toFixed(4)}</td></tr>` : '<tr><td colspan="4">No LLM data available</td></tr>'}
 </tbody>
 </table>
 <footer>
 <p>Log-Parser v0.1.0 | drain-ts v1.1.0 | LogHub-2k Benchmark | CI Workflow</p>
 <p>LLM: DeepSeek-chat via adaptive batch (5 datasets, avg 3.5K tokens/call, ~$0.01 total)</p>
+${errors.length > 0 ? `<p style="color:var(--red)">${errors.length} dataset(s) failed — see errors above</p>` : ''}
 </footer>
 </body></html>`;
 
@@ -108,6 +152,9 @@ ${rows.filter(r=>r.llmCalls>0).map(r =>
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(path.join(outDir, "index.html"), html);
   console.log(`Report written to ${outDir}/index.html (${(html.length / 1024).toFixed(0)}KB)`);
+  if (errors.length > 0) {
+    console.warn(`${errors.length} dataset(s) failed — partial report generated.`);
+  }
 }
 
-main().catch(e => { console.error(e); process.exit(1); });
+main().catch(e => { console.error('Fatal:', e.message); process.exit(1); });
