@@ -415,7 +415,7 @@ export class SynLogTemplateRefiner {
    */
   private templateMatchesAllLogs(template: string, logs: readonly string[]): boolean {
     // Extract constant (non-<*>) tokens
-    const tokens = template.split(/<[^>]*>/).flatMap(s => s.match(/\S+/g) ?? []);
+    const tokens = template.split(/<[^>]*>/).flatMap((s) => s.match(/\S+/g) ?? []);
     if (tokens.length === 0) return false;
 
     for (const log of logs) {

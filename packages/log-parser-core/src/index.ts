@@ -105,3 +105,12 @@ export type {
   BenchmarkDataset,
   DatasetName,
 } from './evaluation/index.js';
+
+// ── Optimization ──
+export { ConfigAutoTuner, ConfigExporter } from './optimization/index.js';
+export type {
+  TunerConfig,
+  TunerResult,
+  TunerParamSpace,
+  TunerEvalStep,
+} from './optimization/index.js';
