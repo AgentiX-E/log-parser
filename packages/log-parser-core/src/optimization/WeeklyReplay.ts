@@ -76,8 +76,7 @@ export class WeeklyReplay {
 
     const json = ConfigExporter.toJSON(result.bestConfig);
     const env = ConfigExporter.toEnv(result.bestConfig);
-    const changed =
-      result.improvement.pta > 0.001 || result.improvement.ga > 0.001;
+    const changed = result.improvement.pta > 0.001 || result.improvement.ga > 0.001;
 
     return {
       config: result.bestConfig,

@@ -1,0 +1,52 @@
+name: Benchmark Full
+
+on:
+  workflow_dispatch:
+    inputs:
+      dataset:
+        description: 'Dataset name (empty = all 14, "Linux" = CI-compatible default)'
+        required: false
+        default: 'Linux'
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark-full:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Run Full benchmark
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          if [ -z "${{ github.event.inputs.dataset }}" ]; then
+            npx tsx benchmark/loghub-full.ts --all
+          else
+            npx tsx benchmark/loghub-full.ts --dataset "${{ github.event.inputs.dataset }}"
+          fi
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-full-results
+          path: |
+            benchmark/*.json
+            benchmark/*.txt
+          retention-days: 30

@@ -1,4 +1,8 @@
-import { DrainDataPlane, type DrainDataPlaneConfig, type DrainEngineType } from '../data/DrainDataPlane.js';
+import {
+  DrainDataPlane,
+  type DrainDataPlaneConfig,
+  type DrainEngineType,
+} from '../data/DrainDataPlane.js';
 import { Evaluator, type GroundTruthEntry, type ParsedLogEntry } from '../evaluation/Evaluator.js';
 
 export interface TunerParamSpace {
@@ -138,8 +142,11 @@ export class ConfigAutoTuner {
     // Stage 3: Explore boolean flags and engine variants
     if (config?.exploreBooleans !== false) {
       const booleanFlags: Array<keyof DrainDataPlaneConfig> = [
-        'extendedMasking', 'enableAELSimilarity', 'enableAdjacentFusion',
-        'enableClusterMerge', 'enableParamBinning',
+        'extendedMasking',
+        'enableAELSimilarity',
+        'enableAdjacentFusion',
+        'enableClusterMerge',
+        'enableParamBinning',
       ];
       for (const flag of booleanFlags) {
         for (const val of [true, false]) {
@@ -150,7 +157,10 @@ export class ConfigAutoTuner {
           const score = this.computeScore(ga, pta, metric, gaW);
           history.push({ ga, pta, score, config: cfg });
           if (score > bestScore) {
-            bestScore = score; bestConfig = cfg; bestGa = ga; bestPta = pta;
+            bestScore = score;
+            bestConfig = cfg;
+            bestGa = ga;
+            bestPta = pta;
           }
         }
       }
@@ -166,7 +176,10 @@ export class ConfigAutoTuner {
         const score = this.computeScore(ga, pta, metric, gaW);
         history.push({ ga, pta, score, config: cfg });
         if (score > bestScore) {
-          bestScore = score; bestConfig = cfg; bestGa = ga; bestPta = pta;
+          bestScore = score;
+          bestConfig = cfg;
+          bestGa = ga;
+          bestPta = pta;
         }
       }
     }
@@ -205,7 +218,7 @@ export class ConfigAutoTuner {
       const result = drain.match(log);
       parsed.push({
         logId: String(i),
-        template: result?.template ?? "",
+        template: result?.template ?? '',
         eventId: String(result?.templateId ?? -1),
       });
       gt.push({ logId: String(i), template: gte.template, eventId: gte.eventId });

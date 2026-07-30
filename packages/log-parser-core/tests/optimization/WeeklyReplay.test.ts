@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { WeeklyReplay } from '../../src/optimization/WeeklyReplay.js';
-import type { WeeklyReplayResult } from '../../src/optimization/WeeklyReplay.js';
 
 function makeLogs(count: number): string[] {
   const logs: string[] = [];
