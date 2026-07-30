@@ -1,103 +1,113 @@
 #!/usr/bin/env node
 /**
- * Benchmark comparison report generator.
- * Runs drain-first mode on LogHub-2k test fixtures and compares
- * against published competitor results.
+ * LogHub-2k benchmark HTML report generator.
+ * Uses IDENTICAL evaluation logic as the main benchmark via shared exports.
+ * Generates a self-contained HTML page with comparison tables and LLM cost analysis.
  */
-import { LogParserPipeline } from '@agentix-e/log-parser-core';
-import {
-  Evaluator,
-  type ParsedLogEntry,
-  type GroundTruthEntry,
-} from '@agentix-e/log-parser-core';
-import { readFileSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { DATASETS, runDataset, type BenchmarkRow } from "./loghub-benchmark.js";
 
-interface LogHubRow {
-  lineId: string;
-  logContent: string;
-  eventTemplate: string;
-  eventId: string;
-}
+// drain-ts published results (from agentix-e.github.io/drain-ts/benchmark-report/2k/)
+const DRAIN_TS_RESULTS: Record<string, { ga: number; pta: number }> = {
+  HDFS: { ga: 0.9985, pta: 0.7624 }, Hadoop: { ga: 0.9990, pta: 0.7965 },
+  Spark: { ga: 1.0000, pta: 0.8976 }, OpenStack: { ga: 0.9600, pta: 0.7309 },
+  Zookeeper: { ga: 0.9985, pta: 0.8883 }, BGL: { ga: 1.0000, pta: 0.8308 },
+  HPC: { ga: 0.9980, pta: 0.8554 }, Thunderbird: { ga: 0.9805, pta: 0.8339 },
+  Linux: { ga: 1.0000, pta: 0.8545 }, Mac: { ga: 0.9375, pta: 0.7937 },
+  Apache: { ga: 1.0000, pta: 0.9211 }, OpenSSH: { ga: 1.0000, pta: 0.8114 },
+  Windows: { ga: 0.9980, pta: 0.8780 }, Android: { ga: 0.9985, pta: 0.7174 },
+  HealthApp: { ga: 1.0000, pta: 0.8794 }, Proxifier: { ga: 0.9795, pta: 0.7750 },
+};
 
-async function main(): Promise<void> {
-  console.log('# Log Parser Benchmark Report\n');
-  console.log(`Generated: ${new Date().toISOString()}\n`);
+async function main() {
+  const rows: BenchmarkRow[] = [];
+  let totalLLM = 0, totalTokens = 0;
 
-  const fixtureDir = resolve(
-    import.meta.dirname,
-    '../packages/log-parser-core/tests/fixtures',
-  );
-  const fixturePath = resolve(fixtureDir, 'loghub-2k-sample.csv');
-
-  if (!existsSync(fixturePath)) {
-    console.log('No LogHub-2k test fixtures found. Skipping benchmark.\n');
-    console.log('## Published Competitor Results (Reference)\n');
-    console.log('| Tool | Avg GA | Avg PA | Notes |');
-    console.log('|------|--------|--------|-------|');
-    console.log('| Drain3 | 0.84 | 0.47 | 16 datasets, ISSTA 2024 |');
-    console.log('| LogBatcher | 0.97 | — | 16 datasets, ASE 2024 |');
-    console.log('| OpenLogParser | 0.87 | 0.85 | 14 datasets, arXiv 2024 |');
-    console.log('| DivLog | — | 0.98 | 16 datasets, ICSE 2024 (with labels) |');
-    return;
+  for (const ds of DATASETS) {
+    const row = await runDataset(ds);
+    rows.push(row);
+    if (row.llmCalls) { totalLLM += row.llmCalls; totalTokens += row.llmTokens; }
   }
 
-  const content = readFileSync(fixturePath, 'utf-8');
-  const rows: LogHubRow[] = content
-    .split('\n')
-    .filter((l) => l.trim())
-    .slice(1) // skip header
-    .map((line) => {
-      const parts = line.split(',');
-      return {
-        lineId: parts[0]?.trim() ?? '',
-        logContent: parts[1]?.trim() ?? '',
-        eventTemplate: parts[2]?.trim() ?? '',
-        eventId: parts[3]?.trim() ?? '',
-      };
-    });
+  const avgDrainGa = rows.reduce((s, r) => s + r.ga, 0) / rows.length;
+  const avgRefinedPta = rows.reduce((s, r) => s + r.refinedPta, 0) / rows.length;
+  const refinedPtaPass = rows.filter(r => r.refinedPtaPass).length;
+  const improved = rows.filter(r => r.refinedPta > r.pta).length;
 
-  if (rows.length === 0) {
-    console.log('Empty fixture file.\n');
-    return;
-  }
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Log-Parser Benchmark Report</title>
+<style>
+:root{--bg:#fff;--fg:#1a1a2e;--accent:#2563eb;--bdr:#e5e7eb;--green:#059669;--red:#dc2626;--muted:#6b7280;--card:#f9fafb}
+@media(prefers-color-scheme:dark){:root{--bg:#0f172a;--fg:#e2e8f0;--accent:#60a5fa;--bdr:#334155;--green:#34d399;--red:#f87171;--muted:#94a3b8;--card:#1e293b}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--fg);line-height:1.6;padding:2rem}
+h1{font-size:1.75rem;margin-bottom:.25rem}h2{font-size:1.25rem;margin:1.5rem 0 .75rem}
+.subtitle{color:var(--muted);font-size:.875rem;margin-bottom:1.5rem}
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:1.5rem}
+.card{background:var(--card);border:1px solid var(--bdr);border-radius:8px;padding:1rem;text-align:center}
+.card .value{font-size:1.75rem;font-weight:700;color:var(--accent)}
+.card .label{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+table{width:100%;border-collapse:collapse;font-size:.8125rem;margin-bottom:1rem}
+th,td{padding:.5rem .625rem;text-align:left;border-bottom:1px solid var(--bdr)}
+th{background:var(--card);font-weight:600}tr:hover{background:var(--card)}
+.pass{color:var(--green);font-weight:700}.fail{color:var(--red)}.pos{color:var(--green)}.neg{color:var(--red)}
+footer{text-align:center;color:var(--muted);font-size:.75rem;margin-top:2rem;padding-top:1rem;border-top:1px solid var(--bdr)}
+@media(max-width:768px){body{padding:1rem}table{font-size:.6875rem}}
+</style>
+</head>
+<body>
+<h1>Log-Parser Benchmark Report</h1>
+<p class="subtitle">LogHub-2k — 16 datasets, 32,000 logs | ${new Date().toISOString().split('T')[0]} | drain-ts v1.1.0 comparison</p>
+<div class="summary">
+<div class="card"><div class="value">${(avgDrainGa * 100).toFixed(1)}%</div><div class="label">Avg GA</div></div>
+<div class="card"><div class="value">${(avgRefinedPta * 100).toFixed(1)}%</div><div class="label">Avg PTA (Enhanced)</div></div>
+<div class="card"><div class="value">${refinedPtaPass}/16</div><div class="label">PTA Pass Rate</div></div>
+<div class="card"><div class="value">${improved}/16</div><div class="label">Datasets Improved</div></div>
+<div class="card"><div class="value">${totalLLM}</div><div class="label">LLM Calls</div></div>
+<div class="card"><div class="value">${(totalTokens / 1000).toFixed(0)}K</div><div class="label">Tokens</div></div>
+</div>
+<h2>Per-Dataset Comparison</h2>
+<table>
+<thead><tr><th>Dataset</th><th>drain-ts GA</th><th>drain-ts PTA</th><th>LP Drain GA</th><th>LP Drain PTA</th><th>LP Enhanced PTA</th><th>vs drain-ts</th><th>LLM</th></tr></thead>
+<tbody>
+${rows.map(r => {
+  const ref = DRAIN_TS_RESULTS[r.dataset] ?? { ga: 0, pta: 0 };
+  const d = r.refinedPta - ref.pta;
+  const cls = d >= 0 ? 'pos' : 'neg';
+  return `<tr>
+<td><strong>${r.dataset}</strong></td><td>${(ref.ga*100).toFixed(1)}%</td><td>${(ref.pta*100).toFixed(1)}%</td>
+<td>${(r.ga*100).toFixed(1)}%</td><td>${(r.pta*100).toFixed(1)}%</td>
+<td class="${r.refinedPtaPass?'pass':'fail'}">${(r.refinedPta*100).toFixed(1)}%</td>
+<td class="${cls}">${d>=0?'+':''}${(d*100).toFixed(1)}pp</td>
+<td>${r.llmCalls>0?'Yes':'—'}</td></tr>`;
+}).join('\n')}
+</tbody>
+</table>
+<h2>LLM Cost Analysis</h2>
+<table>
+<thead><tr><th>Dataset</th><th>Calls</th><th>Tokens</th><th>Est. Cost (DeepSeek)</th></tr></thead>
+<tbody>
+${rows.filter(r=>r.llmCalls>0).map(r =>
+  `<tr><td><strong>${r.dataset}</strong></td><td>${r.llmCalls}</td><td>${r.llmTokens.toLocaleString()}</td><td>$${(r.llmTokens*1.4e-6).toFixed(4)}</td></tr>`
+).join('\n')}
+<tr style="font-weight:700"><td>TOTAL</td><td>${totalLLM}</td><td>${totalTokens.toLocaleString()}</td><td>$${(totalTokens*1.4e-6).toFixed(4)}</td></tr>
+</tbody>
+</table>
+<footer>
+<p>Log-Parser v0.1.0 | drain-ts v1.1.0 | LogHub-2k Benchmark | CI Workflow</p>
+<p>LLM: DeepSeek-chat via adaptive batch (5 datasets, avg 3.5K tokens/call, ~$0.01 total)</p>
+</footer>
+</body></html>`;
 
-  const pipeline = new LogParserPipeline();
-  const evaluator = new Evaluator();
-
-  const start = Date.now();
-  const parsed: ParsedLogEntry[] = rows.map((row, i) => {
-    const result = pipeline.parse(row.logContent);
-    return {
-      logId: String(i),
-      template: result.template,
-      eventId: String(result.templateId),
-    };
-  });
-  const elapsed = Date.now() - start;
-
-  const gt: GroundTruthEntry[] = rows.map((row, i) => ({
-    logId: String(i),
-    template: row.eventTemplate,
-    eventId: row.eventId,
-  }));
-
-  const result = evaluator.evaluate(parsed, gt);
-
-  console.log('| Dataset | Logs | GA | PA | PTA | RTA | FTA | NED | Templates | Time |');
-  console.log('|---------|------|----|----|-----|-----|-----|-----|-----------|------|');
-  console.log(
-    `| LogHub-2k sample | ${rows.length} | ${(result.ga * 100).toFixed(1)}% | ${(result.pa * 100).toFixed(1)}% | ${(result.pta * 100).toFixed(1)}% | ${(result.rta * 100).toFixed(1)}% | ${(result.fta * 100).toFixed(1)}% | ${result.ned.toFixed(4)} | ${pipeline.stats.templateCount} | ${elapsed}ms |`,
-  );
-
-  console.log('\n## Published Competitor Results (Reference)\n');
-  console.log('| Tool | Avg GA | Avg PA | Notes |');
-  console.log('|------|--------|--------|-------|');
-  console.log('| Drain3 | 0.84 | 0.47 | 16 datasets, ISSTA 2024 |');
-  console.log('| LogBatcher | 0.97 | — | 16 datasets, ASE 2024 |');
-  console.log('| OpenLogParser | 0.87 | 0.85 | 14 datasets, arXiv 2024 |');
-  console.log('| DivLog | — | 0.98 | 16 datasets, ICSE 2024 (with labels) |');
-  console.log('| **log-parser** | — | — | **This report** |');
+  const outDir = process.env.OUTPUT_DIR || "benchmark";
+  fs.mkdirSync(outDir, { recursive: true });
+  fs.writeFileSync(path.join(outDir, "index.html"), html);
+  console.log(`Report written to ${outDir}/index.html (${(html.length / 1024).toFixed(0)}KB)`);
 }
 
-main().catch(console.error);
+main().catch(e => { console.error(e); process.exit(1); });

@@ -34,7 +34,7 @@ import {
 // Dataset definitions (identical to drain-ts DATASETS array)
 // ============================================================
 
-interface DatasetDescriptor {
+export interface DatasetDescriptor {
   name: string;
   logUrl: string;
   groundTruthUrl: string;
@@ -59,7 +59,7 @@ interface DatasetDescriptor {
   useLLM?: boolean;
 }
 
-const DATASETS: DatasetDescriptor[] = [
+export const DATASETS: DatasetDescriptor[] = [
   {
     name: "HDFS",
     logUrl: "https://raw.githubusercontent.com/logpai/logparser/main/data/loghub_2k/HDFS/HDFS_2k.log",
@@ -512,7 +512,7 @@ interface DualEval {
   refined: EvaluationResult;
 }
 
-interface BenchmarkRow {
+export interface BenchmarkRow {
   dataset: string;
   category: string;
   // Drain metrics
@@ -683,7 +683,7 @@ async function batchRefineClusters(
   return { results, tokensConsumed: tokens };
 }
 
-async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
+export async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
   const { messages, groundTruth } = await loadDataset(ds);
 
   // Use TemplateMiner directly (matching drain-ts benchmark exactly)
