@@ -206,7 +206,7 @@ a{color:var(--accent)}a:hover{opacity:.8}
 tr:hover{background:var(--card)}.best{font-weight:700;color:var(--green)}
 </style></head><body>
 <h1>Log-Parser LogHub Full Benchmark</h1>
-<p class="meta">Generated: ${genDate} · 14 datasets parallel · drain-only · <a href="/log-parser/">← back to benchmarks</a> · <a href="/log-parser/2k/">LogHub-2k →</a></p>
+<p class="meta">Generated: ${genDate} · ${rows.length} datasets parallel · drain-only · <a href="/log-parser/">← back to benchmarks</a> · <a href="/log-parser/2k/">LogHub-2k →</a></p>
 
 <div class="cards">
 <div class="card"><div class="value">${rows.length}</div><div class="label">Datasets</div></div>
@@ -237,7 +237,7 @@ ${rows.map(r => {
     <td>${r.timeStr}</td>
     <td>${r.throughputStr}</td>
   </tr>`;
-}).join("\n")}
+}).join("\n") || `<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:2rem">No benchmark results available. All dataset downloads may have failed. Check CI logs for details.</td></tr>`}
 </tbody></table>
 
 <p class="meta">GA, FGA, PTA, FTA computed using logpai/logparser-compatible compact evaluation · Target thresholds from drain-ts published benchmarks · Higher is better for all metrics · Green = meets or exceeds target</p>
@@ -288,6 +288,12 @@ async function main() {
   fs.mkdirSync(outDir, { recursive: true });
 
   const genDate = new Date().toISOString();
+
+  // Generate warning if no data found
+  if (uniqueRows.length === 0 && files.length > 0) {
+    console.warn("WARNING: All benchmark files were found but contained no successful results. Check if datasets failed to download.");
+  }
+
   const html = genHtml(uniqueRows, genDate);
 
   fs.writeFileSync(path.join(outDir, "index.html"), html);

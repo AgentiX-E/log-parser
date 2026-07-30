@@ -19,6 +19,8 @@ import * as http from 'node:http';
 import * as https from 'node:https';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import * as os from 'node:os';
+import { execSync } from 'node:child_process';
 import { TemplateMiner, TemplateMinerConfig } from '@agentix-e/drain-ts';
 import { EXTENDED_MASKING_INSTRUCTIONS } from '@agentix-e/drain-ts';
 
@@ -34,8 +36,8 @@ process.on('uncaughtException', (err) => {
 
 interface FullDatasetDescriptor {
   name: string;
-  logUrl: string;
-  groundTruthUrl: string;
+  /** Zenodo zip URL containing .log and .log_structured.csv */
+  zipUrl: string;
   category: string;
   targetGA: number;
   targetPTA: number;
@@ -74,18 +76,16 @@ const FULL_DATASETS: FullDatasetDescriptor[] = [
   // ===================== Distributed Systems =====================
   {
     name: 'HDFS',
-    logUrl: 'https://zenodo.org/records/8275861/files/HDFS.log?download=1',
-    groundTruthUrl: 'https://zenodo.org/records/8275861/files/HDFS.log_structured.csv?download=1',
+    zipUrl: 'https://zenodo.org/records/8275861/files/HDFS.zip?download=1',
     category: 'Distributed Systems',
     targetGA: 0.99,
-    targetPTA: 0.7,
+    targetPTA: 0.70,
     approximateSize: '1.5 GB',
     approximateCount: '11M',
   },
   {
     name: 'Hadoop',
-    logUrl: 'https://zenodo.org/records/8275861/files/Hadoop.log?download=1',
-    groundTruthUrl: 'https://zenodo.org/records/8275861/files/Hadoop.log_structured.csv?download=1',
+    zipUrl: 'https://zenodo.org/records/8275861/files/Hadoop.zip?download=1',
     category: 'Distributed Systems',
     targetGA: 0.94,
     targetPTA: 0.74,
@@ -94,19 +94,16 @@ const FULL_DATASETS: FullDatasetDescriptor[] = [
   },
   {
     name: 'Spark',
-    logUrl: 'https://zenodo.org/records/8275861/files/Spark.log?download=1',
-    groundTruthUrl: 'https://zenodo.org/records/8275861/files/Spark.log_structured.csv?download=1',
+    zipUrl: 'https://zenodo.org/records/8275861/files/Spark.zip?download=1',
     category: 'Distributed Systems',
     targetGA: 0.91,
-    targetPTA: 0.7,
+    targetPTA: 0.70,
     approximateSize: '2.4 GB',
     approximateCount: '16M',
   },
   {
     name: 'OpenStack',
-    logUrl: 'https://zenodo.org/records/8275861/files/OpenStack.log?download=1',
-    groundTruthUrl:
-      'https://zenodo.org/records/8275861/files/OpenStack.log_structured.csv?download=1',
+    zipUrl: 'https://zenodo.org/records/8275861/files/OpenStack.zip?download=1',
     category: 'Distributed Systems',
     targetGA: 0.85,
     targetPTA: 0.67,
@@ -116,9 +113,7 @@ const FULL_DATASETS: FullDatasetDescriptor[] = [
   },
   {
     name: 'Zookeeper',
-    logUrl: 'https://zenodo.org/records/8275861/files/Zookeeper.log?download=1',
-    groundTruthUrl:
-      'https://zenodo.org/records/8275861/files/Zookeeper.log_structured.csv?download=1',
+    zipUrl: 'https://zenodo.org/records/8275861/files/Zookeeper.zip?download=1',
     category: 'Distributed Systems',
     targetGA: 0.98,
     targetPTA: 0.75,
@@ -128,8 +123,7 @@ const FULL_DATASETS: FullDatasetDescriptor[] = [
   // ===================== Supercomputers =====================
   {
     name: 'BGL',
-    logUrl: 'https://zenodo.org/records/8275861/files/BGL.log?download=1',
-    groundTruthUrl: 'https://zenodo.org/records/8275861/files/BGL.log_structured.csv?download=1',
+    zipUrl: 'https://zenodo.org/records/8275861/files/BGL.zip?download=1',
     category: 'Supercomputers',
     targetGA: 0.96,
     targetPTA: 0.76,
@@ -138,19 +132,16 @@ const FULL_DATASETS: FullDatasetDescriptor[] = [
   },
   {
     name: 'HPC',
-    logUrl: 'https://zenodo.org/records/8275861/files/HPC.log?download=1',
-    groundTruthUrl: 'https://zenodo.org/records/8275861/files/HPC.log_structured.csv?download=1',
+    zipUrl: 'https://zenodo.org/records/8275861/files/HPC.zip?download=1',
     category: 'Supercomputers',
     targetGA: 0.93,
-    targetPTA: 0.8,
+    targetPTA: 0.80,
     approximateSize: '32 MB',
     approximateCount: '200K',
   },
   {
     name: 'Thunderbird',
-    logUrl: 'https://zenodo.org/records/8275861/files/Thunderbird.log?download=1',
-    groundTruthUrl:
-      'https://zenodo.org/records/8275861/files/Thunderbird.log_structured.csv?download=1',
+    zipUrl: 'https://zenodo.org/records/8275861/files/Thunderbird.zip?download=1',
     category: 'Supercomputers',
     targetGA: 0.94,
     targetPTA: 0.76,
@@ -160,8 +151,7 @@ const FULL_DATASETS: FullDatasetDescriptor[] = [
   // ===================== Operating Systems =====================
   {
     name: 'Linux',
-    logUrl: 'https://zenodo.org/records/8275861/files/Linux.log?download=1',
-    groundTruthUrl: 'https://zenodo.org/records/8275861/files/Linux.log_structured.csv?download=1',
+    zipUrl: 'https://zenodo.org/records/8275861/files/Linux.zip?download=1',
     category: 'Operating Systems',
     targetGA: 0.75,
     targetPTA: 0.65,
@@ -170,30 +160,26 @@ const FULL_DATASETS: FullDatasetDescriptor[] = [
   },
   {
     name: 'Mac',
-    logUrl: 'https://zenodo.org/records/8275861/files/Mac.log?download=1',
-    groundTruthUrl: 'https://zenodo.org/records/8275861/files/Mac.log_structured.csv?download=1',
+    zipUrl: 'https://zenodo.org/records/8275861/files/Mac.zip?download=1',
     category: 'Operating Systems',
     targetGA: 0.85,
-    targetPTA: 0.7,
+    targetPTA: 0.70,
     approximateSize: '16 MB',
     approximateCount: '117K',
   },
   {
     name: 'Windows',
-    logUrl: 'https://zenodo.org/records/8275861/files/Windows.log?download=1',
-    groundTruthUrl:
-      'https://zenodo.org/records/8275861/files/Windows.log_structured.csv?download=1',
+    zipUrl: 'https://zenodo.org/records/8275861/files/Windows.zip?download=1',
     category: 'Operating Systems',
     targetGA: 0.99,
-    targetPTA: 0.8,
+    targetPTA: 0.80,
     approximateSize: '25 GB',
     approximateCount: '114M',
   },
   // ===================== Server Applications =====================
   {
     name: 'Apache',
-    logUrl: 'https://zenodo.org/records/8275861/files/Apache.log?download=1',
-    groundTruthUrl: 'https://zenodo.org/records/8275861/files/Apache.log_structured.csv?download=1',
+    zipUrl: 'https://zenodo.org/records/8275861/files/Apache.zip?download=1',
     category: 'Server Applications',
     targetGA: 0.99,
     targetPTA: 0.78,
@@ -202,9 +188,7 @@ const FULL_DATASETS: FullDatasetDescriptor[] = [
   },
   {
     name: 'OpenSSH',
-    logUrl: 'https://zenodo.org/records/8275861/files/OpenSSH.log?download=1',
-    groundTruthUrl:
-      'https://zenodo.org/records/8275861/files/OpenSSH.log_structured.csv?download=1',
+    zipUrl: 'https://zenodo.org/records/8275861/files/OpenSSH.zip?download=1',
     category: 'Server Applications',
     targetGA: 0.88,
     targetPTA: 0.75,
@@ -214,116 +198,33 @@ const FULL_DATASETS: FullDatasetDescriptor[] = [
   // ===================== Mobile Systems =====================
   {
     name: 'Android',
-    logUrl: 'https://zenodo.org/records/8275861/files/Android.log?download=1',
-    groundTruthUrl:
-      'https://zenodo.org/records/8275861/files/Android.log_structured.csv?download=1',
+    zipUrl: 'https://zenodo.org/records/8275861/files/Android.zip?download=1',
     category: 'Mobile Systems',
-    targetGA: 0.9,
+    targetGA: 0.90,
     targetPTA: 0.66,
     approximateSize: '158 MB',
     approximateCount: '1.2M',
   },
   {
     name: 'HealthApp',
-    logUrl: 'https://zenodo.org/records/8275861/files/HealthApp.log?download=1',
-    groundTruthUrl:
-      'https://zenodo.org/records/8275861/files/HealthApp.log_structured.csv?download=1',
+    zipUrl: 'https://zenodo.org/records/8275861/files/HealthApp.zip?download=1',
     category: 'Mobile Systems',
     targetGA: 0.85,
-    targetPTA: 0.7,
+    targetPTA: 0.70,
     approximateSize: '6.3 MB',
     approximateCount: '55K',
   },
+  // ===================== Security =====================
+  {
+    name: 'Proxifier',
+    zipUrl: 'https://zenodo.org/records/8275861/files/Proxifier.zip?download=1',
+    category: 'Security',
+    targetGA: 0.95,
+    targetPTA: 0.70,
+    approximateSize: '380 kB',
+    approximateCount: '2K',
+  },
 ];
-
-// ============================================================
-// HTTP fetch helpers
-// ============================================================
-
-function fetchUrl(url: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const client = url.startsWith('https') ? https : http;
-    client
-      .get(url, { headers: { 'User-Agent': 'log-parser-benchmark/2.0' } }, (res) => {
-        if (res.statusCode === 301 || res.statusCode === 302) {
-          const redirect = res.headers.location;
-          if (!redirect) {
-            reject(new Error(`Redirect without Location for ${url}`));
-            return;
-          }
-          fetchUrl(redirect).then(resolve, reject);
-          return;
-        }
-        if (res.statusCode !== 200) {
-          reject(new Error(`HTTP ${res.statusCode} for ${url}`));
-          return;
-        }
-        let data = '';
-        res.on('data', (chunk: Buffer) => (data += chunk.toString()));
-        res.on('end', () => resolve(data));
-      })
-      .on('error', reject);
-  });
-}
-
-/**
- * Streams CSV lines from a URL, avoiding the Node.js ~512MB string limit.
- * Yields one line at a time via callback. Used for large datasets.
- */
-function fetchUrlLines(
-  url: string,
-  onLine: (line: string) => void,
-  onHeader: (line: string) => void,
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const client = url.startsWith('https') ? https : http;
-    client
-      .get(url, { headers: { 'User-Agent': 'log-parser-benchmark/2.0' } }, (res) => {
-        if (res.statusCode === 301 || res.statusCode === 302) {
-          const redirect = res.headers.location;
-          if (!redirect) {
-            reject(new Error(`Redirect without Location for ${url}`));
-            return;
-          }
-          fetchUrlLines(redirect, onLine, onHeader).then(resolve, reject);
-          return;
-        }
-        if (res.statusCode !== 200) {
-          reject(new Error(`HTTP ${res.statusCode} for ${url}`));
-          return;
-        }
-
-        let buffer = '';
-        let headerProcessed = false;
-
-        res.on('data', (chunk: Buffer) => {
-          buffer += chunk.toString();
-          const lines = buffer.split('\n');
-          // Last element may be incomplete — keep in buffer
-          buffer = lines.pop() ?? '';
-
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            if (!headerProcessed) {
-              onHeader(line);
-              headerProcessed = true;
-              continue;
-            }
-            onLine(line);
-          }
-        });
-
-        res.on('end', () => {
-          // Process remaining buffer
-          if (buffer.trim()) {
-            onLine(buffer);
-          }
-          resolve();
-        });
-      })
-      .on('error', reject);
-  });
-}
 
 // ============================================================
 // RFC 4180 CSV parsing
@@ -598,6 +499,99 @@ function evaluateCompact(
 }
 
 // ============================================================
+// Zip download + extraction (Zenodo now serves .zip archives)
+// ============================================================
+
+/**
+ * Downloads a zip archive from a URL, extracts it to a temp directory,
+ * and returns the path to the extracted .log_structured.csv file.
+ * Uses a local cache to avoid re-downloading on repeated runs.
+ */
+async function downloadAndExtractZip(
+  zipUrl: string,
+  datasetName: string,
+  cacheDir?: string | null,
+): Promise<string> {
+  // Use a cached directory if available
+  const workDir = cacheDir
+    ? path.join(cacheDir, datasetName)
+    : path.join(os.tmpdir(), `loghub-full-${datasetName}-${Date.now()}`);
+
+  // Check if already extracted
+  const csvPattern = /_structured\.csv$/;
+  if (fs.existsSync(workDir)) {
+    const existing = fs.readdirSync(workDir).find((f) => csvPattern.test(f));
+    if (existing) {
+      console.log(`  Using cached extraction: ${path.join(workDir, existing)}`);
+      return path.join(workDir, existing);
+    }
+  }
+
+  // Download zip
+  const zipPath = path.join(workDir, `${datasetName}.zip`);
+  fs.mkdirSync(workDir, { recursive: true });
+
+  if (!fs.existsSync(zipPath)) {
+    console.log(`  Downloading ${zipUrl}`);
+    const data = await fetchUrlBinary(zipUrl);
+    fs.writeFileSync(zipPath, data);
+    console.log(`  Downloaded ${(data.length / 1024 / 1024).toFixed(1)}MB`);
+  } else {
+    console.log(`  Using cached zip: ${zipPath}`);
+  }
+
+  // Extract zip
+  console.log(`  Extracting ${zipPath}...`);
+  try {
+    execSync(`unzip -o "${zipPath}" -d "${workDir}"`, { stdio: 'pipe' });
+  } catch (e: any) {
+    throw new Error(`Failed to unzip ${zipPath}: ${e.message}`);
+  }
+
+  // Find the structured CSV file
+  const extracted = fs.readdirSync(workDir);
+  const csvFile = extracted.find((f) => csvPattern.test(f));
+  if (!csvFile) {
+    // List extracted files for debugging
+    console.error(`  Extracted files: ${extracted.join(', ')}`);
+    throw new Error(
+      `No _structured.csv found in extracted zip for ${datasetName}`,
+    );
+  }
+
+  return path.join(workDir, csvFile);
+}
+
+/**
+ * Downloads binary data from a URL (for zip files).
+ */
+function fetchUrlBinary(url: string): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const client = url.startsWith('https') ? https : http;
+    client
+      .get(url, { headers: { 'User-Agent': 'log-parser-benchmark/2.0' } }, (res) => {
+        if (res.statusCode === 301 || res.statusCode === 302) {
+          const redirect = res.headers.location;
+          if (!redirect) {
+            reject(new Error(`Redirect without Location for ${url}`));
+            return;
+          }
+          fetchUrlBinary(redirect).then(resolve, reject);
+          return;
+        }
+        if (res.statusCode !== 200) {
+          reject(new Error(`HTTP ${res.statusCode} for ${url}`));
+          return;
+        }
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk: Buffer) => chunks.push(chunk));
+        res.on('end', () => resolve(Buffer.concat(chunks)));
+      })
+      .on('error', reject);
+  });
+}
+
+// ============================================================
 // Dataset loading (streaming for full datasets)
 // ============================================================
 
@@ -613,10 +607,10 @@ interface FullDataset {
 }
 
 /**
- * Loads a dataset from URL or local cache directory.
+ * Loads a dataset from a local structured CSV file path.
  * Uses streaming CSV parsing for large datasets.
  */
-async function loadDataset(gtUrl: string, cacheDir?: string | null): Promise<FullDataset> {
+async function loadDataset(csvPath: string): Promise<FullDataset> {
   const messages: string[] = [];
   const gtTemplateIds: number[] = [];
   const templateTokensMap = new Map<number, string[]>();
@@ -650,32 +644,14 @@ async function loadDataset(gtUrl: string, cacheDir?: string | null): Promise<Ful
     gtTemplateIds.push(tid);
   };
 
-  // Check local cache first
-  if (cacheDir) {
-    const cachePath = path.join(cacheDir, path.basename(new URL(gtUrl).pathname));
-    if (fs.existsSync(cachePath)) {
-      console.log(`  Using cached: ${cachePath}`);
-      const content = fs.readFileSync(cachePath, 'utf-8');
-      const lines = content.split('\n');
-      for (const line of lines) {
-        processLine(line);
-      }
-    } else {
-      // Download and cache
-      console.log(`  Downloading to: ${cachePath}`);
-      const content = await fetchUrl(gtUrl);
-      fs.mkdirSync(cacheDir, { recursive: true });
-      fs.writeFileSync(cachePath, content, 'utf-8');
-      const lines = content.split('\n');
-      for (const line of lines) {
-        processLine(line);
-      }
-    }
-  } else {
-    await fetchUrlLines(gtUrl, processLine, (hdrLine) => processLine(hdrLine));
+  // Stream-read the CSV file
+  const fileContent = fs.readFileSync(csvPath, 'utf-8');
+  const lines = fileContent.split('\n');
+  for (const line of lines) {
+    processLine(line);
   }
 
-  if (!header) throw new Error('CSV must have header and data');
+  if (!header) throw new Error(`CSV must have header and data: ${csvPath}`);
   return { messages, gtTemplateIds, templateTokensMap, totalMessages: messages.length };
 }
 
@@ -703,10 +679,10 @@ async function runDataset(
   ds: FullDatasetDescriptor,
   cacheDir?: string | null,
 ): Promise<BenchmarkRow> {
-  const { messages, gtTemplateIds, templateTokensMap, totalMessages } = await loadDataset(
-    ds.groundTruthUrl,
-    cacheDir,
-  );
+  // Download zip and extract structured CSV
+  const csvPath = await downloadAndExtractZip(ds.zipUrl, ds.name, cacheDir);
+  const { messages, gtTemplateIds, templateTokensMap, totalMessages } =
+    await loadDataset(csvPath);
 
   const miner = new TemplateMiner({
     config: TemplateMinerConfig.from({
@@ -884,7 +860,7 @@ function printDatasetTable(): void {
     );
   }
   console.log('─'.repeat(80));
-  console.log(`  Total: 14 datasets | Zenodo record: https://zenodo.org/records/8275861`);
+  console.log(`  Total: 15 datasets | Zenodo record: https://zenodo.org/records/8275861`);
 }
 
 // ============================================================
@@ -911,7 +887,7 @@ async function main(): Promise<void> {
   if (isAll) {
     console.log('🏗️  Full dataset mode (LogHub-2.0 Zenodo)');
     console.log(
-      '⚠️  WARNING: Downloading all 14 datasets requires ~55GB+ storage and significant time.\n',
+      '⚠️  WARNING: Downloading all 15 datasets requires ~1GB+ storage and significant time.\n',
     );
     datasetsToRun = FULL_DATASETS;
   } else if (datasetArg) {
@@ -933,7 +909,7 @@ async function main(): Promise<void> {
     console.log('');
     console.log('Options:');
     console.log('  --dataset <name>   Run a single full dataset (e.g., Linux, Zookeeper)');
-    console.log('  --all              Run all 14 full datasets (requires ~55GB+ storage)');
+    console.log('  --all              Run all 15 full datasets (requires ~1GB+ storage)');
     console.log('  --llm              Enable LLM-enhanced mode (adaptive batch refinement)');
     console.log('  --list             List all available datasets with sizes');
     console.log('  --data-dir <dir>   Cache downloads to directory (default: no cache)');
