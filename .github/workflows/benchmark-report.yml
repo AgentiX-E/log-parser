@@ -156,7 +156,15 @@ jobs:
       - name: Generate Full HTML report
         run: |
           mkdir -p docs/full
-          cat > docs/full/index.html << 'HTMLEOF'
+          # Build table rows from benchmark artifacts
+          TABLE_ROWS=""
+          for f in /tmp/full-results/benchmark-full-*/bench-*.txt; do
+            [ -f "$f" ] || continue
+            awk '/^  [A-Z]/ {printf "<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>\n", $1,$2,$3,$4,$5,$6,$7}' "$f"
+          done > /tmp/table-rows.html
+          GEN_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          TABLE_CONTENT=$(cat /tmp/table-rows.html)
+          cat > docs/full/index.html << HTMLEOF
           <!DOCTYPE html><html lang="en">
           <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
           <title>Log-Parser LogHub Full Benchmark</title>
@@ -173,12 +181,9 @@ jobs:
           .pass{color:var(--green)}.fail{color:var(--red)}.meta{color:var(--muted);font-size:.85rem}
           </style></head><body>
           <h1>Log-Parser LogHub Full Benchmark</h1>
-          <p class="meta">Generated: $(date -u +"%Y-%m-%dT%H:%M:%SZ") · 14 datasets parallel · drain-only · <a href="/log-parser/">← back to benchmarks</a></p>
+          <p class="meta">Generated: ${GEN_DATE} · 14 datasets parallel · drain-only · <a href="/log-parser/">← back to benchmarks</a></p>
           <table><thead><tr><th>Dataset</th><th>Messages</th><th>GA</th><th>FGA</th><th>PTA</th><th>FTA</th><th>Time</th></tr></thead><tbody>
-          $(for f in /tmp/full-results/benchmark-full-*/bench-*.txt; do
-            awk '/^  [A-Z]/ {printf "<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>\n",
-              $1,$2,$3,$4,$5,$6,$7}' "$f" 2>/dev/null
-          done)
+          ${TABLE_CONTENT}
           </tbody></table></body></html>
           HTMLEOF
 
