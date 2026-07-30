@@ -31,9 +31,10 @@ jobs:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: npx tsx benchmark/loghub-benchmark.ts 2>&1 | tee benchmark/results.txt
       - name: Generate HTML report
-        run: npx tsx benchmark/report.ts
         env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           OUTPUT_DIR: docs
+        run: npx tsx benchmark/report.ts
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
