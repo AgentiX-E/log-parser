@@ -537,8 +537,9 @@ async function downloadAndExtractZip(
   // Check if already extracted
   const existing = findCsv(workDir);
   if (existing) {
-    console.log(`  Using cached extraction: ${existing}`);
-    return existing;
+    const resolved = path.resolve(existing);
+    console.log(`  Using cached extraction: ${resolved}`);
+    return resolved;
   }
 
   // Download zip
@@ -581,7 +582,7 @@ async function downloadAndExtractZip(
     );
   }
 
-  return path.join(workDir, csvFile);
+  return path.resolve(csvFile);
 }
 
 /**
