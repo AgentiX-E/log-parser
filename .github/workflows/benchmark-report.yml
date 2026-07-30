@@ -155,37 +155,7 @@ jobs:
 
       - name: Generate Full HTML report
         run: |
-          mkdir -p docs/full
-          # Build table rows from benchmark artifacts
-          TABLE_ROWS=""
-          for f in /tmp/full-results/benchmark-full-*/bench-*.txt; do
-            [ -f "$f" ] || continue
-            awk '/^  [A-Z]/ {printf "<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>\n", $1,$2,$3,$4,$5,$6,$7}' "$f"
-          done > /tmp/table-rows.html
-          GEN_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          TABLE_CONTENT=$(cat /tmp/table-rows.html)
-          cat > docs/full/index.html << HTMLEOF
-          <!DOCTYPE html><html lang="en">
-          <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-          <title>Log-Parser LogHub Full Benchmark</title>
-          <style>
-          :root{--bg:#fff;--fg:#1a1a2e;--accent:#2563eb;--bdr:#e5e7eb;--green:#059669;--red:#dc2626;--muted:#6b7280}
-          @media(prefers-color-scheme:dark){:root{--bg:#0f172a;--fg:#e2e8f0;--accent:#60a5fa;--bdr:#334155;--green:#34d399;--red:#f87171;--muted:#94a3b8}}
-          *{box-sizing:border-box}body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--fg);margin:2rem auto;padding:0 1rem;max-width:1200px}
-          h1{border-bottom:2px solid var(--accent);padding-bottom:.5rem}
-          table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.9rem}
-          th,td{text-align:right;padding:.5rem .75rem;border-bottom:1px solid var(--bdr)}
-          th:first-child,td:first-child{text-align:left}
-          th{background:var(--bdr);font-weight:600}
-          td:first-child{font-weight:500}
-          .pass{color:var(--green)}.fail{color:var(--red)}.meta{color:var(--muted);font-size:.85rem}
-          </style></head><body>
-          <h1>Log-Parser LogHub Full Benchmark</h1>
-          <p class="meta">Generated: ${GEN_DATE} · 14 datasets parallel · drain-only · <a href="/log-parser/">← back to benchmarks</a></p>
-          <table><thead><tr><th>Dataset</th><th>Messages</th><th>GA</th><th>FGA</th><th>PTA</th><th>FTA</th><th>Time</th></tr></thead><tbody>
-          ${TABLE_CONTENT}
-          </tbody></table></body></html>
-          HTMLEOF
+          npx tsx benchmark/report-full.ts /tmp/full-results docs/full
 
       - name: Create landing page
         run: |
