@@ -667,12 +667,32 @@ async function loadDataset(csvPath: string): Promise<FullDataset> {
     gtTemplateIds.push(tid);
   };
 
-  // Stream-read the CSV file
-  const fileContent = fs.readFileSync(csvPath, 'utf-8');
-  const lines = fileContent.split('\n');
-  for (const line of lines) {
-    processLine(line);
-  }
+  // Stream-read the CSV file (avoids Node.js ~512MB string limit for large datasets)
+  await new Promise<void>((resolve, reject) => {
+    const stream = fs.createReadStream(csvPath, { encoding: 'utf-8', highWaterMark: 64 * 1024 });
+    let buffer = '';
+
+    stream.on('data', (chunk: string) => {
+      buffer += chunk;
+      const lines = buffer.split('\n');
+      // Last element may be incomplete — keep in buffer
+      buffer = lines.pop() ?? '';
+
+      for (const line of lines) {
+        processLine(line);
+      }
+    });
+
+    stream.on('end', () => {
+      // Process remaining buffer
+      if (buffer.trim()) {
+        processLine(buffer);
+      }
+      resolve();
+    });
+
+    stream.on('error', reject);
+  });
 
   if (!header) throw new Error(`CSV must have header and data: ${csvPath}`);
   return { messages, gtTemplateIds, templateTokensMap, totalMessages: messages.length };
