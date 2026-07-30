@@ -59,83 +59,50 @@ interface FullRow {
 }
 
 // ============================================================
-// Parser: fixed-column extraction from structured output
+// Parser: regex-based extraction from structured output
 // ============================================================
 /**
  * The benchmark output format is controlled by loghub-full.ts:printResults():
  *
- *   `${dataset.padEnd(14)} ${category.padEnd(20)} ${ga.padStart(8)} ${fga.padStart(8)}
- *    ${pta.padStart(8)} ${fta.padStart(8)} ${gaPass.padStart(8)} ${ptaPass.padStart(8)}
- *    ${timeStr.padStart(8)} ${throughputStr.padStart(10)} ${messages.padStart(12)}`
+ *   `  ${dataset.padEnd(14)} ${category.padEnd(20)} ${ga.padStart(8)}
+ *    ${fga.padStart(8)} ${pta.padStart(8)} ${fta.padStart(8)}
+ *    ${gaPass.padStart(8)} ${ptaPass.padStart(8)}
+ *    ${timeStr.padStart(8)} ${throughputStr.padStart(10)}
+ *    ${messages.padStart(12)}`
  *
- * Column positions (0-indexed), including 1-space separator between fields:
- *   Dataset:    2..15  (padEnd 14)
- *   Category:   17..36 (padEnd 20)
- *   GA:         38..45 (padStart 8)
- *   FGA:        47..54 (padStart 8)
- *   PTA:        56..63 (padStart 8)
- *   FTA:        65..72 (padStart 8)
- *   GA Pass:    74..81 (padStart 8)
- *   PTA Pass:   83..90 (padStart 8)
- *   Time:       92..99 (padStart 8)
- *   Throughput: 101..110 (padStart 10)
- *   Messages:   112..123 (padStart 12)
+ * Regex matches: leading 2 spaces, dataset name, category (with spaces),
+ * then numeric fields separated by whitespace, pass/fail symbols,
+ * time string, throughput string, and locale-formatted message count.
  */
-const COLUMNS = {
-  dataset:    { start: 2,  end: 15 },
-  category:   { start: 17, end: 36 },
-  ga:         { start: 38, end: 45 },
-  fga:        { start: 47, end: 54 },
-  pta:        { start: 56, end: 63 },
-  fta:        { start: 65, end: 72 },
-  gaPass:     { start: 74, end: 81 },
-  ptaPass:    { start: 83, end: 90 },
-  time:       { start: 92, end: 99 },
-  throughput: { start: 101, end: 110 },
-  messages:   { start: 112, end: 123 },
-};
-
-function extractCol(line: string, col: { start: number; end: number }): string {
-  if (line.length <= col.start) return "";
-  return line.substring(col.start, Math.min(col.end, line.length)).trim();
-}
+const ROW_REGEX = /^\s{2}(\w[\w-]*?)\s{2,}([A-Z][\w\s]+?)\s{2,}([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([✓✗])\s+([✓✗])\s+(\S+)\s+(\S+)\s+([\d,]+)$/;
 
 function parseRow(line: string): FullRow | null {
-  const dataset = extractCol(line, COLUMNS.dataset);
-  // Must start with a capital letter (dataset names)
-  if (!dataset || !/^[A-Z]/.test(dataset)) return null;
+  const m = line.match(ROW_REGEX);
+  if (!m) return null;
 
-  const category = extractCol(line, COLUMNS.category);
-  const gaStr = extractCol(line, COLUMNS.ga);
-  const fgaStr = extractCol(line, COLUMNS.fga);
-  const ptaStr = extractCol(line, COLUMNS.pta);
-  const ftaStr = extractCol(line, COLUMNS.fta);
-  const gaPassStr = extractCol(line, COLUMNS.gaPass);
-  const ptaPassStr = extractCol(line, COLUMNS.ptaPass);
-  const timeStr = extractCol(line, COLUMNS.time);
-  const throughputStr = extractCol(line, COLUMNS.throughput);
-  const messagesStr = extractCol(line, COLUMNS.messages);
+  const dataset = m[1]!;
+  const category = m[2]!.trim();
+  const ga = parseFloat(m[3]!);
+  const fga = parseFloat(m[4]!);
+  const pta = parseFloat(m[5]!);
+  const fta = parseFloat(m[6]!);
+  const gaPass = m[7] === "✓";
+  const ptaPass = m[8] === "✓";
+  const timeStr = m[9]!;
+  const throughputStr = m[10]!;
+  const messages = parseInt(m[11]!.replace(/,/g, ""), 10);
 
-  const ga = parseFloat(gaStr);
-  const fga = parseFloat(fgaStr);
-  const pta = parseFloat(ptaStr);
-  const fta = parseFloat(ftaStr);
-
-  if (isNaN(ga) || isNaN(pta)) return null;
-
-  const messages = parseInt(messagesStr.replace(/,/g, ""), 10);
-  if (isNaN(messages)) return null;
+  if (isNaN(ga) || isNaN(pta) || isNaN(messages)) return null;
 
   const targets = TARGETS[dataset] ?? { ga: 0, pta: 0 };
 
   return {
     dataset,
-    category: category || "",
+    category,
     ga, fga, pta, fta,
-    gaPass: gaPassStr === "✓",
-    ptaPass: ptaPassStr === "✓",
-    timeStr: timeStr || "",
-    throughputStr: throughputStr || "",
+    gaPass, ptaPass,
+    timeStr,
+    throughputStr,
     messages,
     targetGA: targets.ga,
     targetPTA: targets.pta,
