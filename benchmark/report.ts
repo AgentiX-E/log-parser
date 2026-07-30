@@ -30,7 +30,11 @@ interface Row {
 }
 
 function parseLine(line: string): Row | null {
-  const m = line.match(/^(\S+)\s+GA:([\d.]+)%→([\d.]+)%\s.*PTA:([\d.]+)%→([\d.]+)%/);
+  // LLM-enhanced datasets have an "[LLM]" tag between name and metrics:
+  //   "  OpenStack [LLM]  GA:70.1%→73.4%+3.3pp    PTA:65.2%→72.1%+6.9pp"
+  // Non-LLM datasets omit the tag:
+  //   "  HDFS            GA:99.9%→99.9%~         PTA:76.2%→76.2%~"
+  const m = line.match(/^(\S+)(?:\s+\[LLM\])?\s+GA:([\d.]+)%→([\d.]+)%\s.*PTA:([\d.]+)%→([\d.]+)%/);
   if (!m) return null;
   return {
     dataset: m[1]!,
