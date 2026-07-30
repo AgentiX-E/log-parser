@@ -146,7 +146,7 @@ async function main() {
     logs: trainLogs,
     groundTruth: ds.groundTruth.slice(0, splitIdx),
   });
-  const result = await tuner.tune({ maxIterations: 30, targetMetric: "combined", gaWeight: 0.3 });
+  const result = await tuner.tune({ maxIterations: 80, targetMetric: "combined", gaWeight: 0.3 });
   console.log(`  Best: simTh=${result.bestConfig.simTh?.toFixed(2)} depth=${result.bestConfig.depth} maxChildren=${result.bestConfig.maxChildren}`);
   console.log(`  Score: ${(result.bestScore * 100).toFixed(1)}%  Evaluations: ${result.evaluations}\n`);
 

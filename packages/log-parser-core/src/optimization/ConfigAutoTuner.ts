@@ -1,10 +1,14 @@
-import { DrainDataPlane, type DrainDataPlaneConfig } from '../data/DrainDataPlane.js';
+import { DrainDataPlane, type DrainDataPlaneConfig, type DrainEngineType } from '../data/DrainDataPlane.js';
 import { Evaluator, type GroundTruthEntry, type ParsedLogEntry } from '../evaluation/Evaluator.js';
 
 export interface TunerParamSpace {
   simThRange?: [number, number];
   depthRange?: [number, number];
   maxChildrenRange?: [number, number];
+  /** Explore boolean flags? Default: true */
+  exploreBooleans?: boolean;
+  /** Explore engine variants (drain, jaccard)? Default: true */
+  exploreEngine?: boolean;
 }
 
 export interface TunerConfig extends TunerParamSpace {
@@ -34,6 +38,8 @@ const DEFAULT_SPACE: Required<TunerParamSpace> = {
   simThRange: [0.2, 0.8],
   depthRange: [3, 6],
   maxChildrenRange: [50, 500],
+  exploreBooleans: true,
+  exploreEngine: true,
 };
 
 /** Simplest possible metric for unsupervised tuning: template-to-log ratio. */
@@ -129,7 +135,43 @@ export class ConfigAutoTuner {
       }
     }
 
-    // Baseline
+    // Stage 3: Explore boolean flags and engine variants
+    if (config?.exploreBooleans !== false) {
+      const booleanFlags: Array<keyof DrainDataPlaneConfig> = [
+        'extendedMasking', 'enableAELSimilarity', 'enableAdjacentFusion',
+        'enableClusterMerge', 'enableParamBinning',
+      ];
+      for (const flag of booleanFlags) {
+        for (const val of [true, false]) {
+          if (history.length >= maxIter) break;
+          if (bestConfig[flag] === val) continue; // skip current value
+          const cfg: DrainDataPlaneConfig = { ...bestConfig, [flag]: val };
+          const { ga, pta } = await this.evaluate(cfg);
+          const score = this.computeScore(ga, pta, metric, gaW);
+          history.push({ ga, pta, score, config: cfg });
+          if (score > bestScore) {
+            bestScore = score; bestConfig = cfg; bestGa = ga; bestPta = pta;
+          }
+        }
+      }
+    }
+
+    if (config?.exploreEngine !== false) {
+      const engineTypes: DrainEngineType[] = ['Drain', 'JaccardDrain'];
+      for (const engine of engineTypes) {
+        if (history.length >= maxIter) break;
+        if (bestConfig.engine === engine) continue;
+        const cfg: DrainDataPlaneConfig = { ...bestConfig, engine };
+        const { ga, pta } = await this.evaluate(cfg);
+        const score = this.computeScore(ga, pta, metric, gaW);
+        history.push({ ga, pta, score, config: cfg });
+        if (score > bestScore) {
+          bestScore = score; bestConfig = cfg; bestGa = ga; bestPta = pta;
+        }
+      }
+    }
+
+    // Stage 4: Baseline evaluation
     const baseline = await this.evaluate(this.defaultConfig);
 
     return {
