@@ -33,8 +33,28 @@ jobs:
       - name: Generate HTML report
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          OUTPUT_DIR: docs
+          OUTPUT_DIR: docs/2k
         run: npx tsx benchmark/report.ts
+      - name: Create landing page
+        run: |
+          cat > docs/index.html << 'EOF'
+          <!DOCTYPE html><html lang="en">
+          <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+          <title>Log-Parser Benchmarks</title>
+          <style>
+          :root{--bg:#fff;--fg:#1a1a2e;--accent:#2563eb}
+          @media(prefers-color-scheme:dark){:root{--bg:#0f172a;--fg:#e2e8f0;--accent:#60a5fa}}
+          body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--fg);max-width:800px;margin:4rem auto;padding:0 2rem}
+          h1{font-size:2rem;border-bottom:3px solid var(--accent);padding-bottom:.5rem}
+          a{display:block;padding:1.5rem;margin:1rem 0;border:2px solid var(--accent);border-radius:8px;text-decoration:none;color:var(--fg);font-size:1.2rem;transition:background .2s}
+          a:hover{background:var(--accent);color:#fff}
+          .sub{font-size:.9rem;color:var(--muted);margin-top:.3rem}
+          </style></head><body>
+          <h1>AgentiX-E/log-parser Benchmarks</h1>
+          <a href="/log-parser/2k/">LogHub-2k (16 datasets × 2,000 logs)<span class="sub">Automated on every push to master. Includes LLM-enhanced comparison.</span></a>
+          <a href="/log-parser/full/">LogHub Full (14 datasets × up to 16M logs)<span class="sub">Manual trigger. Production-scale validation.</span></a>
+          </body></html>
+          EOF
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
