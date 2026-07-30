@@ -107,10 +107,11 @@ export type {
 } from './evaluation/index.js';
 
 // ── Optimization ──
-export { ConfigAutoTuner, ConfigExporter } from './optimization/index.js';
+export { ConfigAutoTuner, ConfigExporter, WeeklyReplay } from './optimization/index.js';
 export type {
   TunerConfig,
   TunerResult,
   TunerParamSpace,
   TunerEvalStep,
+  WeeklyReplayResult,
 } from './optimization/index.js';

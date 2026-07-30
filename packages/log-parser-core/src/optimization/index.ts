@@ -6,3 +6,5 @@ export type {
   TunerEvalStep,
 } from './ConfigAutoTuner.js';
 export { ConfigExporter } from './ConfigExporter.js';
+export { WeeklyReplay } from './WeeklyReplay.js';
+export type { WeeklyReplayResult } from './WeeklyReplay.js';
