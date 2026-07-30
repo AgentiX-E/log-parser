@@ -8,7 +8,7 @@ describe('ChineseTokenizer', () => {
     expect(tokenizer.id).toBe('zh');
   });
 
-  it('tokenize returns fallback tokens (nodejieba not installed)', () => {
+  it('tokenize returns native tokens (nodejieba installed)', () => {
     const result = tokenizer.tokenize('用���登录成功');
     expect(result.length).toBeGreaterThan(0);
   });
@@ -27,9 +27,9 @@ describe('ChineseTokenizer', () => {
   });
 });
 
-it('getBackend reports fallback when nodejieba unavailable', () => {
+it('getBackend reports native when nodejieba is available', () => {
   const tokenizer = new ChineseTokenizer();
-  expect(tokenizer.getBackend()).toBe('fallback');
+  expect(tokenizer.getBackend()).toBe('native');
 });
 
 it('getBackend returns a valid backend type', () => {
