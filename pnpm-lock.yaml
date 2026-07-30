@@ -101,8 +101,8 @@ importers:
         specifier: ^8.0.0
         version: 8.1.1(@opentelemetry/api@1.9.1)
       nodejieba:
-        specifier: ^2.6.0
-        version: 2.6.0
+        specifier: ^3.5.8
+        version: 3.5.8
 
   packages/log-parser-llm:
     dependencies:
@@ -1485,8 +1485,8 @@ packages:
     resolution: {integrity: sha512-Ucb+lsUcGxUqu3rn8cwHjT6gJQosO63nIX/aBQXB3+IDkNbFV7PuviysO+Rzz3aKn7PZhPj3bNF4PS9gDVjYCQ==}
     engines: {node: '>=0.4.10'}
 
-  node-addon-api@3.2.1:
-    resolution: {integrity: sha512-mmcei9JghVNDYydghQmeDX8KoAm0FAiYyIcUt/N4nhyAipB17pllZQDOJD2fotxABnt4Mdz+dKTO7eftLg4d0A==}
+  node-addon-api@5.1.0:
+    resolution: {integrity: sha512-eh0GgfEkpnoWDq+VY8OyvYhFEzBk6jIYbRKdIlyTiAXIVJ8PyBaKb0rp7oDtoddbdoHWhq8wwr+XZ81F1rpNdA==}
 
   node-fetch@2.7.0:
     resolution: {integrity: sha512-c4FRfUm/dbcWZ7U+1Wq0AwCyFL+3nt2bEw05wfxSz+DWpWsitgmSgYmy2dQdWyKC1694ELPqMs/YzUSNozLt8A==}
@@ -1497,9 +1497,9 @@ packages:
       encoding:
         optional: true
 
-  nodejieba@2.6.0:
-    resolution: {integrity: sha512-cyEOLRGLjDuxbTuv6nuMAK3NpML4ft9i7st98TFHvXtg+m3RFhIuf4INBHGp3VhUaqPsCTfAkhHB/ZNTFiwJjg==}
-    engines: {node: '>= 10.20.0'}
+  nodejieba@3.5.8:
+    resolution: {integrity: sha512-TFiDYgEVmBgQwAr1sVj7err3Cn21qxMxTLA+LTEVqKcGqgwJuonJEW0g6oH2+7FhMKJfkWsvlj1SaTrWXe1Q9w==}
+    engines: {node: '>= 14.0.0'}
 
   nopt@5.0.0:
     resolution: {integrity: sha512-Tbj67rffqceeLpcRXrT7vKAN8CwfPeIBgM7E6iBkmKLV7bEMwpGgYLGv0jACUsECaa/vuxP0IjEont6umdMgtQ==}
@@ -3448,7 +3448,7 @@ snapshots:
       - socks
     optional: true
 
-  node-addon-api@3.2.1:
+  node-addon-api@5.1.0:
     optional: true
 
   node-fetch@2.7.0:
@@ -3456,10 +3456,10 @@ snapshots:
       whatwg-url: 5.0.0
     optional: true
 
-  nodejieba@2.6.0:
+  nodejieba@3.5.8:
     dependencies:
       '@mapbox/node-pre-gyp': 1.0.11
-      node-addon-api: 3.2.1
+      node-addon-api: 5.1.0
     transitivePeerDependencies:
       - encoding
       - supports-color
