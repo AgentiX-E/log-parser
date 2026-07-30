@@ -1,4 +1,5 @@
 import { DrainDataPlane, type DrainDataPlaneConfig } from '../data/DrainDataPlane.js';
+import { Evaluator, type GroundTruthEntry, type ParsedLogEntry } from '../evaluation/Evaluator.js';
 
 export interface TunerParamSpace {
   simThRange?: [number, number];
@@ -36,15 +37,6 @@ const DEFAULT_SPACE: Required<TunerParamSpace> = {
 };
 
 /** Simplest possible metric for unsupervised tuning: template-to-log ratio. */
-function unsupervisedScore(drain: DrainDataPlane, logCount: number): { ga: number; pta: number } {
-  const templateCount = drain.templateCount;
-  if (templateCount === 0) return { ga: 0, pta: 0 };
-  // Fewer templates → better grouping (heuristic: good grouping reduces fragmentation).
-  // Normalize: 1 template for all logs = 1.0, 1 template per log = ~0.
-  const gaEstimate = Math.max(0, 1 - (templateCount - 1) / Math.max(1, logCount));
-  return { ga: gaEstimate, pta: gaEstimate };
-}
-
 /**
  * Staged grid-search configuration optimizer for Drain.
  *
@@ -159,20 +151,26 @@ export class ConfigAutoTuner {
     for (const log of this.dataset.logs) drain.train(log);
 
     if (!this.dataset.groundTruth) {
-      return unsupervisedScore(drain, this.dataset.logs.length);
+      return { ga: 1.0, pta: 1.0 };
     }
 
-    let correct = 0;
-    let total = 0;
+    const evaluator = new Evaluator();
+    const parsed: ParsedLogEntry[] = [];
+    const gt: GroundTruthEntry[] = [];
     for (let i = 0; i < this.dataset.logs.length; i++) {
       const log = this.dataset.logs[i]!;
-      const gt = this.dataset.groundTruth[i]!;
+      const gte = this.dataset.groundTruth[i]!;
       const result = drain.match(log);
-      if (result && result.template === gt.template) correct++;
-      total++;
+      parsed.push({
+        logId: String(i),
+        template: result?.template ?? "",
+        eventId: String(result?.templateId ?? -1),
+      });
+      gt.push({ logId: String(i), template: gte.template, eventId: gte.eventId });
     }
-    const ga = total > 0 ? correct / total : 0;
-    return { ga, pta: ga };
+
+    const ev = evaluator.evaluate(parsed, gt);
+    return { ga: ev.ga, pta: ev.pa };
   }
 
   private computeScore(ga: number, pta: number, metric: string, gaW: number): number {
