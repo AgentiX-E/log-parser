@@ -15,7 +15,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  benchmark:
+  # ─── LogHub-2k benchmark ────────────────────────────────────
+  benchmark-2k:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,15 +27,159 @@ jobs:
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - name: Run benchmark
+      - name: Run LogHub-2k benchmark
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-        run: npx tsx benchmark/loghub-benchmark.ts 2>&1 | tee benchmark/results.txt
-      - name: Generate HTML report
+        run: npx tsx benchmark/loghub-benchmark.ts 2>&1 | tee /tmp/bench-2k.txt
+      - name: Upload 2k artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-2k
+          path: /tmp/bench-2k.txt
+
+  # ─── LogHub-2k HTML report ──────────────────────────────────
+  report-2k:
+    needs: benchmark-2k
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Generate 2k HTML report
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           OUTPUT_DIR: docs/2k
         run: npx tsx benchmark/report.ts
+      - name: Upload 2k pages artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pages-2k
+          path: docs
+
+  # ─── LogHub Full (14 parallel datasets) ─────────────────────
+  Proxifier:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: Proxifier
+
+  Linux:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: Linux
+
+  Apache:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: Apache
+
+  Zookeeper:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: Zookeeper
+
+  Mac:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: Mac
+
+  HealthApp:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: HealthApp
+
+  Hadoop:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: Hadoop
+
+  OpenStack:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: OpenStack
+
+  HPC:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: HPC
+
+  OpenSSH:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: OpenSSH
+
+  BGL:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: BGL
+
+  Spark:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: Spark
+
+  HDFS:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: HDFS
+
+  Thunderbird:
+    uses: ./.github/workflows/_benchmark-full.yml
+    with:
+      dataset: Thunderbird
+
+  # ─── Aggregate + Pages ───────────────────────────────────────
+  pages:
+    needs: [report-2k, Proxifier,Linux,Apache,Zookeeper,Mac,HealthApp,Hadoop,
+            OpenStack,HPC,OpenSSH,BGL,Spark,HDFS,Thunderbird]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download 2k report
+        uses: actions/download-artifact@v4
+        with:
+          name: pages-2k
+          path: docs
+
+      - name: Download Full results
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/full-results
+
+      - name: Generate Full HTML report
+        run: |
+          mkdir -p docs/full
+          cat > docs/full/index.html << 'HTMLEOF'
+          <!DOCTYPE html><html lang="en">
+          <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+          <title>Log-Parser LogHub Full Benchmark</title>
+          <style>
+          :root{--bg:#fff;--fg:#1a1a2e;--accent:#2563eb;--bdr:#e5e7eb;--green:#059669;--red:#dc2626;--muted:#6b7280}
+          @media(prefers-color-scheme:dark){:root{--bg:#0f172a;--fg:#e2e8f0;--accent:#60a5fa;--bdr:#334155;--green:#34d399;--red:#f87171;--muted:#94a3b8}}
+          *{box-sizing:border-box}body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--fg);margin:2rem auto;padding:0 1rem;max-width:1200px}
+          h1{border-bottom:2px solid var(--accent);padding-bottom:.5rem}
+          table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.9rem}
+          th,td{text-align:right;padding:.5rem .75rem;border-bottom:1px solid var(--bdr)}
+          th:first-child,td:first-child{text-align:left}
+          th{background:var(--bdr);font-weight:600}
+          td:first-child{font-weight:500}
+          .pass{color:var(--green)}.fail{color:var(--red)}.meta{color:var(--muted);font-size:.85rem}
+          </style></head><body>
+          <h1>Log-Parser LogHub Full Benchmark</h1>
+          <p class="meta">Generated: $(date -u +"%Y-%m-%dT%H:%M:%SZ") · 14 datasets parallel · drain-only · <a href="/log-parser/">← back to benchmarks</a></p>
+          <table><thead><tr><th>Dataset</th><th>Messages</th><th>GA</th><th>FGA</th><th>PTA</th><th>FTA</th><th>Time</th></tr></thead><tbody>
+          $(for f in /tmp/full-results/benchmark-full-*/bench-*.txt; do
+            awk '/^  [A-Z]/ {printf "<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>\n",
+              $1,$2,$3,$4,$5,$6,$7}' "$f" 2>/dev/null
+          done)
+          </tbody></table></body></html>
+          HTMLEOF
+
       - name: Create landing page
         run: |
           cat > docs/index.html << 'EOF'
@@ -51,17 +196,18 @@ jobs:
           .sub{font-size:.9rem;color:var(--muted);margin-top:.3rem}
           </style></head><body>
           <h1>AgentiX-E/log-parser Benchmarks</h1>
-          <a href="/log-parser/2k/">LogHub-2k (16 datasets × 2,000 logs)<span class="sub">Automated on every push to master. Includes LLM-enhanced comparison.</span></a>
-          <a href="/log-parser/full/">LogHub Full (14 datasets × up to 16M logs)<span class="sub">Manual trigger. Production-scale validation.</span></a>
+          <a href="/log-parser/2k/">LogHub-2k<span class="sub">16 datasets × 2,000 logs · LLM-enhanced comparison</span></a>
+          <a href="/log-parser/full/">LogHub Full<span class="sub">14 datasets × up to 16M logs · Production-scale validation · Automated with 2k</span></a>
           </body></html>
           EOF
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: docs
 
   deploy:
-    needs: benchmark
+    needs: pages
     runs-on: ubuntu-latest
     environment:
       name: github-pages
