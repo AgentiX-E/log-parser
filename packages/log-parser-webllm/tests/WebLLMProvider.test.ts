@@ -1,4 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// Must be at top-level for vitest hoisting — mock before any imports
+vi.mock('@mlc-ai/web-llm', () => ({
+  CreateMLCEngine: vi.fn().mockResolvedValue({
+    chat: { completions: { create: vi.fn().mockResolvedValue({ choices: [{ message: { content: '<TEMPLATE>test</TEMPLATE>' } }] }) } },
+  }),
+}));
+
 import { WebLLMProvider } from '../src/WebLLMProvider.js';
 
 describe('WebLLMProvider', () => {
