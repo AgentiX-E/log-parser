@@ -155,7 +155,6 @@ jobs:
         with:
           path: /tmp/full-results
         continue-on-error: true
-        continue-on-error: true
 
       - name: Generate Full HTML report
         run: |
