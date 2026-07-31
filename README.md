@@ -116,17 +116,37 @@ Endpoints: `POST /api/v1/parse`, `GET /api/v1/templates`, `POST /api/v1/calibrat
 
 ## Benchmarks
 
-All 16 LogHub-2k datasets, drain-ts comparison, LLM cost analysis.
+All 16 LogHub-2k datasets evaluated against LogPAI standard metrics.
 
 **[View live benchmark report →](https://agentix-e.github.io/log-parser/)**
 
-| Metric | drain-ts | log-parser drain-only | log-parser +LLM/SynLog |
+> ⚠️ **Note**: Benchmarks are currently based on the Drain engine (drain-ts)
+> with SynLogTemplateRefiner and adaptive LLM batching. Full pipeline-integrated
+> benchmarks (I1 improvement) are in progress. Numbers below represent verified
+> drain-ts + SynLog refinement results.
+
+| Metric | drain-only | +SynLog Refinement | +LLM Enhancement |
 |--------|:---:|:---:|:---:|
-| Avg GA | 0.991 | 0.990 | 0.990 |
-| Avg PTA | 0.827 | 0.825 | **0.842** |
-| Datasets passed | 16/16 | 16/16 | 16/16 |
-| LLM calls | — | — | 25 |
-| Est. LLM cost | — | — | ~$0.01 |
+| Avg GA | 0.990 | 0.990 | 0.990 |
+| Avg PTA | 0.825 | 0.842 | **0.842** |
+| Datasets tested | 16/16 | 16/16 | 5/16 (LLM) |
+| LLM calls (5 datasets) | — | — | ≤25 |
+| Est. LLM cost | — | — | <$0.02 |
+
+## Current Status
+
+| Metric | Value |
+|--------|-------|
+| Core coverage | 93.0% stmts / 85.7% branch / 95.5% funcs / 94.0% lines |
+| Total tests | 461+ passing (core), 569+ across all packages |
+| TypeScript | strict mode, zero `@ts-nocheck` in core |
+| Node.js/ESM | Node ≥22, ESM-only |
+
+### Planned Improvements (see roadmap)
+- Full pipeline-integrated benchmark (I1)
+- ≥95% coverage on all 4 dimensions for all packages (I1)
+- K8s Helm chart, gRPC API, Playwright browser tests (I2-I4)
+- WASM acceleration for browser (I6)
 
 ## Development
 

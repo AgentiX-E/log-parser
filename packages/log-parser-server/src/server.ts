@@ -2,6 +2,38 @@ import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 import { LogParserPipeline } from '@agentix-e/log-parser-core';
 
+// Module-level signal handler state — ensures handlers are registered once
+// across multiple createServer() calls (critical for test suites).
+let sigHandlersRegistered = false;
+const registeredFastifyRefs = new Set<FastifyInstance>();
+
+function registerGlobalShutdown(fastify: FastifyInstance): void {
+  if (sigHandlersRegistered) {
+    registeredFastifyRefs.add(fastify);
+    return;
+  }
+  sigHandlersRegistered = true;
+  registeredFastifyRefs.add(fastify);
+
+  const shutdown = async (signal: string) => {
+    for (const instance of registeredFastifyRefs) {
+      try {
+        await instance.close();
+      } catch {
+        // Best-effort cleanup
+      }
+    }
+    process.exit(0);
+  };
+
+  process.once('SIGTERM', () => { void shutdown('SIGTERM'); });
+  process.once('SIGINT', () => { void shutdown('SIGINT'); });
+}
+
+function unregisterFromShutdown(fastify: FastifyInstance): void {
+  registeredFastifyRefs.delete(fastify);
+}
+
 /**
  * Configuration for the log-parser REST API server.
  */
@@ -23,8 +55,9 @@ export interface ServerInstance {
 /**
  * Create a Fastify REST API server for the log-parser pipeline.
  *
- * Provides 5 endpoints:
+ * Provides 6 endpoints:
  * - POST /api/v1/parse
+ * - POST /api/v1/parse/batch
  * - GET /api/v1/templates
  * - POST /api/v1/calibrate
  * - GET /api/v1/stats
@@ -145,18 +178,8 @@ export async function createServer(config: ServerConfig = {}): Promise<ServerIns
     };
   });
 
-  // Graceful shutdown handlers
-  const shutdown = async (signal: string) => {
-    fastify.log.info(`Received ${signal}, shutting down gracefully...`);
-    try {
-      await fastify.close();
-    } finally {
-      process.exit(0);
-    }
-  };
-
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT', () => shutdown('SIGINT'));
+  // Register global shutdown handlers (once per process, handles multiple instances)
+  registerGlobalShutdown(fastify);
 
   return {
     fastify,
@@ -164,6 +187,7 @@ export async function createServer(config: ServerConfig = {}): Promise<ServerIns
       await fastify.listen({ port: config.port ?? 3000, host: config.host ?? '0.0.0.0' });
     },
     async stop() {
+      unregisterFromShutdown(fastify);
       await fastify.close();
     },
   };

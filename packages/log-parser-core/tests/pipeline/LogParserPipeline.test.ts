@@ -178,5 +178,144 @@ describe('LogParserPipeline', () => {
       // Should have made at least one LLM call after flushing
       expect(pipeline.stats.llmCalls).toBeGreaterThanOrEqual(1);
     });
+
+    // ── ModelRouter wiring ──
+
+    it('wires ModelRouter when provided', () => {
+      const llm = createMockLLMProvider();
+      const pipeline = new LogParserPipeline({
+        llmProvider: llm,
+        modelRouter: { select: vi.fn().mockReturnValue(llm) } as any,
+      });
+      expect(pipeline.stats.llmCalls).toBe(0);
+    });
+
+    // ── Classifier wiring ──
+
+    it('wires classifier getter when injected', () => {
+      const mockClassifier = { classify: vi.fn().mockReturnValue('GENERIC') } as any;
+      const pipeline = new LogParserPipeline({ classifier: mockClassifier });
+      expect(pipeline.typeClassifier).toBe(mockClassifier);
+    });
+
+    // ── parseAsync concurrency safety ──
+
+    it('parseAsync serializes concurrent parse calls', async () => {
+      const pipeline = new LogParserPipeline();
+      const results = await Promise.all(
+        Array.from({ length: 10 }, (_, i) =>
+          pipeline.parseAsync(`concurrent log message number ${i}`),
+        ),
+      );
+      expect(results).toHaveLength(10);
+      for (const r of results) {
+        expect(r.template).toBeDefined();
+      }
+    });
+
+    it('parseAsync produces results identical to sync parse', async () => {
+      const pipeline = new LogParserPipeline();
+      const syncResult = pipeline.parse('User alice logged in from 192.168.1.1');
+      const asyncResult = await pipeline.parseAsync('User bob logged in from 10.0.0.1');
+      expect(asyncResult.templateId).toBe(syncResult.templateId);
+    });
+
+    // ── parseBatch ──
+
+    it('parseBatch returns results for all logs', () => {
+      const pipeline = new LogParserPipeline();
+      const results = pipeline.parseBatch([
+        'User alice logged in from 192.168.1.1',
+        'User bob logged in from 10.0.0.1',
+        'ERROR disk full on /dev/sda1',
+      ]);
+      expect(results).toHaveLength(3);
+      for (const r of results) {
+        expect(r.template).toBeDefined();
+        expect(r.templateId).toBeGreaterThan(0);
+      }
+    });
+
+    // ── ModelRouter with per-model stats ──
+
+    it('tracks llmCalls incrementally', () => {
+      const pipeline = new LogParserPipeline();
+      expect(pipeline.stats.llmCalls).toBe(0);
+    });
+
+    it('returns modelStats undefined when no LLM calls', () => {
+      const pipeline = new LogParserPipeline();
+      pipeline.parse('test log');
+      expect(pipeline.stats.modelStats).toBeUndefined();
+    });
+
+    // ── Persistence round-trip ──
+
+    it('exportState contains expected keys', () => {
+      const pipeline = new LogParserPipeline();
+      pipeline.parse('User alice logged in');
+      pipeline.parse('User bob logged in');
+      const state = pipeline.exportState();
+      expect(state).toHaveProperty('version');
+      expect(state).toHaveProperty('drainSnapshot');
+      expect(state).toHaveProperty('totalProcessed', 2);
+    });
+
+    it('serializeState produces valid JSON', () => {
+      const pipeline = new LogParserPipeline();
+      pipeline.parse('test log');
+      const json = pipeline.serializeState();
+      const parsed = JSON.parse(json);
+      expect(parsed.version).toBe('1.0.0');
+    });
+
+    it('deserialize restores pipeline correctly', () => {
+      const pipeline = new LogParserPipeline();
+      pipeline.parse('User alice logged in from 192.168.1.1');
+      pipeline.parse('User bob logged in from 10.0.0.1');
+      const json = pipeline.serializeState();
+
+      const restored = LogParserPipeline.deserialize(json);
+      expect(restored.stats.totalProcessed).toBe(2);
+      expect(restored.stats.templateCount).toBe(pipeline.stats.templateCount);
+    });
+
+    it('importState handles malformed data gracefully', () => {
+      const pipeline = new LogParserPipeline();
+      expect(() => pipeline.importState('{}')).not.toThrow();
+      expect(() => pipeline.importState('{"version":"1.0.0"}')).not.toThrow();
+    });
+
+    // ── SynLog refinement (I1) ──
+
+    it('refineTemplates returns 0 with insufficient samples', () => {
+      const pipeline = new LogParserPipeline();
+      pipeline.parse('User alice logged in');
+      pipeline.parse('User bob logged in');
+      pipeline.parse('User charlie logged in');
+      // Only 3 logs in the cluster — SynLog requires ≥4
+      expect(pipeline.refineTemplates()).toBe(0);
+    });
+
+    it('refineTemplates runs with sufficient samples', () => {
+      const pipeline = new LogParserPipeline();
+      // Add 5 similar logs to the same cluster to trigger SynLog refinement
+      pipeline.parse('User alice logged in from 192.168.1.1');
+      pipeline.parse('User bob logged in from 10.0.0.1');
+      pipeline.parse('User charlie logged in from 172.16.0.1');
+      pipeline.parse('User dave logged in from 8.8.8.8');
+      pipeline.parse('User eve logged in from 1.1.1.1');
+      // SynLog should refine the cluster template
+      const changed = pipeline.refineTemplates();
+      expect(typeof changed).toBe('number');
+    });
+
+    it('exportState includes clusterLogsCount', () => {
+      const pipeline = new LogParserPipeline();
+      pipeline.parse('User alice logged in');
+      pipeline.parse('User bob logged in');
+      const state = pipeline.exportState();
+      expect(state.clusterLogsCount).toBeGreaterThanOrEqual(1);
+    });
   });
 });

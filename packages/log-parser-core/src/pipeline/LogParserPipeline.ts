@@ -12,6 +12,8 @@ import { ModelRouter } from '../control/ModelRouter.js';
 import { AdaptiveTemplateCache } from '../cache/AdaptiveTemplateCache.js';
 import { GranularityCalibrator } from '../granularity/GranularityCalibrator.js';
 import type { GranularityConfig } from '../granularity/GranularityDistance.js';
+import { SynLogTemplateRefiner } from '../control/SynLogTemplateRefiner.js';
+import type { RefinementInput } from '../control/SynLogTemplateRefiner.js';
 import type { LogParseResult, PipelineLayerConfig, PipelineStats } from './types.js';
 import { defaultPipelineConfig } from './types.js';
 
@@ -87,6 +89,9 @@ export class LogParserPipeline {
   private readonly sampler = new DppSampler();
   private readonly cache = new AdaptiveTemplateCache();
 
+  // SynLog refinement: track logs per drain cluster for refinement
+  private readonly clusterLogs = new Map<number, string[]>();
+
   // Concurrency safety: serialize parse() calls through a promise chain
   private parseQueue: Promise<void> = Promise.resolve();
 
@@ -101,6 +106,9 @@ export class LogParserPipeline {
 
   // Granularity calibration (HITL)
   private readonly calibrator = new GranularityCalibrator();
+
+  // SynLogPlus-inspired template refiner (I1: wired into pipeline)
+  private readonly synLogRefiner = new SynLogTemplateRefiner();
 
   private nextLogId = 0;
 
@@ -156,6 +164,12 @@ export class LogParserPipeline {
     const logId = String(this.nextLogId++);
 
     const result = this.drain.train(logMessage);
+
+    // Track log message for SynLog refinement per cluster
+    if (!this.clusterLogs.has(result.templateId)) {
+      this.clusterLogs.set(result.templateId, []);
+    }
+    this.clusterLogs.get(result.templateId)!.push(logMessage);
 
     if (result.kind === 'match') {
       this.drainHits++;
@@ -296,6 +310,73 @@ export class LogParserPipeline {
     await this.accumulator?.flush();
   }
 
+  /**
+   * Run SynLogPlus-inspired template refinement on all drain clusters.
+   *
+   * Applies the two-phase template refinement pipeline (regex anonymization
+   * + cross-group constant verification) to every cluster with ≥4 samples.
+   * Refined templates are registered back to drain for subsequent parsing.
+   *
+   * @returns Number of templates changed by refinement.
+   */
+  refineTemplates(): number {
+    const refinementInputs: RefinementInput[] = [];
+
+    for (const [clusterId, logs] of this.clusterLogs) {
+      if (logs.length < 4) continue; // Need enough samples per SynLogPlus algorithm
+      // Get current drain template for this cluster
+      const drainTemplate = this.resolveClusterTemplate(clusterId);
+      if (!drainTemplate) continue;
+
+      refinementInputs.push({
+        logs,
+        drainTemplate,
+      });
+    }
+
+    if (refinementInputs.length === 0) return 0;
+
+    const results = this.synLogRefiner.refine(refinementInputs);
+    let changedCount = 0;
+
+    // Walk back: match refined results to cluster IDs via original refinementInputs order
+    let idx = 0;
+    for (const [clusterId, logs] of this.clusterLogs) {
+      if (logs.length < 4) continue;
+      const result = results[idx++];
+      if (!result || !result.changed) continue;
+
+      // Register refined template back to drain for future parsing
+      const refinedTokens = result.refinedTemplate.split(/\s+/).filter(Boolean);
+      this.drain.registerTemplate(refinedTokens);
+      changedCount++;
+    }
+
+    return changedCount;
+  }
+
+  /**
+   * Resolve the current template string for a drain cluster ID.
+   * Falls back to token reconstruction from the drain state.
+   */
+  private resolveClusterTemplate(clusterId: number): string | null {
+    // DrainDataPlane does not expose getTemplate(clusterId) directly.
+    // We reconstruct by matching: the drain.train() result gives us
+    // templateId → template mapping at parse time. Use the last logged
+    // template for this cluster from the tracking map.
+    // This is sufficient for SynLog refinement which only needs the
+    // original drain template as a baseline for comparison.
+    const logs = this.clusterLogs.get(clusterId);
+    if (!logs || logs.length === 0) return null;
+
+    // Re-run the first log through train() to get its template
+    // Actually, avoid side-effect — just use the train result from matching.
+    // We don't have the original template stored. Use drain.match() instead.
+    const match = this.drain.match(logs[0]!);
+    if (!match) return null;
+    return match.template;
+  }
+
   /** The configured LLM provider, if any. */
   get llm(): ILLMProvider | undefined {
     return this.llmProvider;
@@ -365,6 +446,7 @@ export class LogParserPipeline {
       llmCalls: this.llmCalls,
       llmTokensConsumed: this.llmTokensConsumed,
       nextLogId: this.nextLogId,
+      clusterLogsCount: this.clusterLogs.size,
     };
   }
 
