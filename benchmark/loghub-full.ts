@@ -347,8 +347,8 @@ interface EvaluationResult {
  * Identical algorithm to drain-ts benchmark/evaluator.ts.
  */
 function computeGroupingAccuracy(
-  gtTemplateIds: number[],
-  clusterIds: number[],
+  gtTemplateIds: Int32Array | number[],
+  clusterIds: Int32Array | number[],
   totalMessages: number,
 ): { ga: number; fga: number; gtGroups: number; parsedGroups: number } {
   const gtGroups = new Map<number, Set<number>>();
@@ -406,8 +406,8 @@ function computeGroupingAccuracy(
  * Identical algorithm to drain-ts benchmark/evaluator.ts.
  */
 function computeParsingTemplateAccuracy(
-  gtTemplateIds: number[],
-  clusterIds: number[],
+  gtTemplateIds: Int32Array | number[],
+  clusterIds: Int32Array | number[],
   templateTokensMap: Map<number, string[]>,
   parsedTemplateTokens: Map<number, string[]>,
   totalMessages: number,
@@ -491,8 +491,8 @@ function computeParsingTemplateAccuracy(
 }
 
 function evaluateCompact(
-  gtTemplateIds: number[],
-  clusterIds: number[],
+  gtTemplateIds: Int32Array | number[],
+  clusterIds: Int32Array | number[],
   templateTokensMap: Map<number, string[]>,
   parsedTemplateTokens: Map<number, string[]>,
   totalMessages: number,
@@ -633,29 +633,33 @@ function fetchUrlBinary(url: string): Promise<Buffer> {
 }
 
 // ============================================================
-// Dataset loading (streaming for full datasets)
+// Streaming dataset loading (two-pass, memory-efficient)
 // ============================================================
 
-interface FullDataset {
-  /** Content strings indexed by message position. */
-  messages: string[];
-  /** GT template ID per message position. */
-  gtTemplateIds: number[];
+interface GtPassResult {
+  /** GT template ID per message position (Int32Array for memory efficiency). */
+  gtTemplateIds: Int32Array;
   /** Template tokens per unique GT template ID. */
   templateTokensMap: Map<number, string[]>;
+  /** Sample messages for token normalizer training. */
+  sampleMessages: string[];
   /** Total message count. */
   totalMessages: number;
 }
 
 /**
- * Loads a dataset from a local structured CSV file path.
- * Uses streaming CSV parsing for large datasets.
+ * Pass 1: Stream CSV to collect GT template IDs (Int32Array) and a sample
+ * of message content for token normalizer training. Does NOT store full
+ * message array — avoids OOM on 16M+ datasets like Spark.
  */
-async function loadDataset(csvPath: string): Promise<FullDataset> {
-  const messages: string[] = [];
-  const gtTemplateIds: number[] = [];
+async function streamGtPass(csvPath: string): Promise<GtPassResult> {
+  // Growable typed array for GT template IDs
+  let gtArr = new Int32Array(1_000_000);
+  let gtLen = 0;
   const templateTokensMap = new Map<number, string[]>();
   const templateKeyToId = new Map<string, number>();
+  const sampleMessages: string[] = [];
+  const SAMPLE_SIZE = 2000;
   let nextId = 1;
   let header: CsvHeaderInfo | null = null;
 
@@ -681,39 +685,116 @@ async function loadDataset(csvPath: string): Promise<FullDataset> {
       templateTokensMap.set(tid, templateTokens);
     }
 
-    messages.push(content);
-    gtTemplateIds.push(tid);
+    // Grow gtArr if needed
+    if (gtLen >= gtArr.length) {
+      const newArr = new Int32Array(gtArr.length * 2);
+      newArr.set(gtArr);
+      gtArr = newArr;
+    }
+    gtArr[gtLen++] = tid;
+
+    // Collect sample for token normalizer training
+    if (sampleMessages.length < SAMPLE_SIZE) {
+      sampleMessages.push(content);
+    }
   };
 
-  // Stream-read the CSV file (avoids Node.js ~512MB string limit for large datasets)
-  await new Promise<void>((resolve, reject) => {
-    const stream = fs.createReadStream(csvPath, { encoding: 'utf-8', highWaterMark: 64 * 1024 });
+  await streamFileLines(csvPath, processLine);
+
+  if (!header) throw new Error(`CSV must have header and data: ${csvPath}`);
+
+  // Trim to exact size
+  const gtTemplateIds = new Int32Array(gtArr.buffer, 0, gtLen);
+  return { gtTemplateIds, templateTokensMap, sampleMessages, totalMessages: gtLen };
+}
+
+interface DrainPassResult {
+  /** drain-ts cluster ID per message position (Int32Array). */
+  clusterIds: Int32Array;
+  /** Template tokens per unique parser cluster ID. */
+  parsedTemplateTokens: Map<number, string[]>;
+}
+
+/**
+ * Pass 2: Stream CSV, run each Content line through drain-ts, collect
+ * cluster IDs (Int32Array) and parsed template tokens. Does NOT store
+ * templatesMined[] — builds parsedTemplateTokens incrementally.
+ */
+async function streamDrainPass(
+  csvPath: string,
+  miner: TemplateMiner,
+  totalMessages: number,
+): Promise<DrainPassResult> {
+  const clusterIds = new Int32Array(totalMessages);
+  const parsedTemplateTokens = new Map<number, string[]>();
+  let header: CsvHeaderInfo | null = null;
+  let idx = 0;
+  const startTime = performance.now();
+
+  const processLine = (line: string) => {
+    if (!line.trim()) return;
+    if (!header) {
+      header = analyzeHeader(line);
+      return;
+    }
+    const cols = parseCsvRow(line, header);
+    const content = header.contentIdx >= 0 ? cols[header.contentIdx]! : '';
+
+    const result = miner.addLogMessage(content);
+    clusterIds[idx] = result.clusterId;
+
+    // Build parsed template tokens incrementally (one entry per unique cluster)
+    if (!parsedTemplateTokens.has(result.clusterId)) {
+      parsedTemplateTokens.set(
+        result.clusterId,
+        result.templateMined.split(' '),
+      );
+    }
+
+    idx++;
+    if (idx % 100_000 === 0) {
+      const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
+      process.stdout.write(
+        `  ${idx.toLocaleString()}/${totalMessages.toLocaleString()} (${((idx / totalMessages) * 100).toFixed(1)}%) ${elapsed}s\r`,
+      );
+    }
+  };
+
+  await streamFileLines(csvPath, processLine);
+  return { clusterIds, parsedTemplateTokens };
+}
+
+/**
+ * Streams a file line by line without loading the entire file into memory.
+ * Handles lines split across chunk boundaries.
+ */
+function streamFileLines(
+  filePath: string,
+  onLine: (line: string) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const stream = fs.createReadStream(filePath, {
+      encoding: 'utf-8',
+      highWaterMark: 64 * 1024,
+    });
     let buffer = '';
 
     stream.on('data', (chunk: string) => {
       buffer += chunk;
       const lines = buffer.split('\n');
-      // Last element may be incomplete — keep in buffer
       buffer = lines.pop() ?? '';
-
       for (const line of lines) {
-        processLine(line);
+        onLine(line);
       }
     });
 
     stream.on('end', () => {
-      // Process remaining buffer
-      if (buffer.trim()) {
-        processLine(buffer);
-      }
+      if (buffer.trim()) onLine(buffer);
       resolve();
     });
 
     stream.on('error', reject);
   });
-
-  if (!header) throw new Error(`CSV must have header and data: ${csvPath}`);
-  return { messages, gtTemplateIds, templateTokensMap, totalMessages: messages.length };
 }
 
 // ============================================================
@@ -742,8 +823,10 @@ async function runDataset(
 ): Promise<BenchmarkRow> {
   // Download zip and extract structured CSV
   const csvPath = await downloadAndExtractZip(ds.zipUrl, ds.name, cacheDir);
-  const { messages, gtTemplateIds, templateTokensMap, totalMessages } =
-    await loadDataset(csvPath);
+
+  // Pass 1: Stream CSV → collect GT template IDs (Int32Array) + sample messages
+  const { gtTemplateIds, templateTokensMap, sampleMessages, totalMessages } =
+    await streamGtPass(csvPath);
 
   const miner = new TemplateMiner({
     config: TemplateMinerConfig.from({
@@ -769,25 +852,17 @@ async function runDataset(
     }),
   });
 
-  // Train token normalizers on a sample (first 2000 messages)
-  const sampleSize = Math.min(2000, messages.length);
-  miner.learnTokens(messages.slice(0, sampleSize));
+  // Train token normalizers on sample (first 2000 messages from pass 1)
+  miner.learnTokens(sampleMessages);
 
   const startTime = performance.now();
 
-  // Process all messages — store clusterId + templateMined per position
-  const clusterIds = new Array<number>(totalMessages);
-  const templatesMined = new Array<string>(totalMessages);
-  for (let i = 0; i < totalMessages; i++) {
-    const result = miner.addLogMessage(messages[i]!);
-    clusterIds[i] = result.clusterId;
-    templatesMined[i] = result.templateMined;
-    if ((i + 1) % 100000 === 0) {
-      process.stdout.write(
-        `  ${(i + 1).toLocaleString()}/${totalMessages.toLocaleString()} (${(((i + 1) / totalMessages) * 100).toFixed(1)}%)\r`,
-      );
-    }
-  }
+  // Pass 2: Stream CSV → run drain-ts on each line → collect clusterIds + template tokens
+  const { clusterIds, parsedTemplateTokens } = await streamDrainPass(
+    csvPath,
+    miner,
+    totalMessages,
+  );
 
   // Apply cluster merge if enabled
   try {
@@ -797,15 +872,6 @@ async function runDataset(
   }
 
   const durationMs = performance.now() - startTime;
-
-  // Build parsed template tokens map
-  const parsedTemplateTokens = new Map<number, string[]>();
-  for (let i = 0; i < totalMessages; i++) {
-    const cId = clusterIds[i]!;
-    if (!parsedTemplateTokens.has(cId)) {
-      parsedTemplateTokens.set(cId, templatesMined[i]!.split(' '));
-    }
-  }
 
   // Compact evaluation
   let evalResult: EvaluationResult;
