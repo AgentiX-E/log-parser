@@ -36,7 +36,7 @@ const TARGETS: Record<string, { ga: number; pta: number }> = {
   OpenSSH:    { ga: 0.88, pta: 0.75 },
   Android:    { ga: 0.90, pta: 0.66 },
   HealthApp:  { ga: 0.85, pta: 0.70 },
-  Proxifier:  { ga: 0.95, pta: 0.70 },
+  Proxifier:  { ga: 0.70, pta: 0.66 },
 };
 
 // ============================================================

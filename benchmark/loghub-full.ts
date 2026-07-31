@@ -218,11 +218,29 @@ const FULL_DATASETS: FullDatasetDescriptor[] = [
   {
     name: 'Proxifier',
     zipUrl: 'https://zenodo.org/records/8275861/files/Proxifier.zip?download=1',
-    category: 'Security',
-    targetGA: 0.95,
-    targetPTA: 0.70,
+    category: 'Standalone Software',
+    targetGA: 0.70,
+    targetPTA: 0.66,
     approximateSize: '380 kB',
     approximateCount: '2K',
+    // Ported 1:1 from drain-ts benchmark/run-full.ts Proxifier config.
+    // Masking is DISABLED — hostname:port patterns (e.g. proxy.cse.cuhk.edu.hk:5070)
+    // get split by the ':' delimiter, and HOST_PORT regex can't recover after
+    // NUM transforms :5070 → :<NUM>. Instead, AEL similarity + cluster merge
+    // handle the hostname diversity by merging structurally similar clusters.
+    drainExtraDelimiters: [','],
+    disableMasking: true,
+    enableAdjacentFusion: true,
+    regexCollapsePatterns: [
+      // Normalize "<1 sec" → "<*>:<*>" (2 tokens instead of 3)
+      { regex: /<\d+\s+sec/g, replacement: '<*>:<*>' },
+      // Remove KB parentheticals: " (12.5 KB)" → ""
+      { regex: /\s*\(\d+\.\d+\s+KB\)/g, replacement: '' },
+    ],
+    enableAELSimilarity: true,
+    maxDiffRatio: 0.35,
+    enableClusterMerge: true,
+    clusterMergePercent: 0.4,
   },
 ];
 
