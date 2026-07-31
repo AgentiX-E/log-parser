@@ -13,14 +13,14 @@ import * as path from "node:path";
 
 // drain-ts published results (from agentix-e.github.io/drain-ts/benchmark-report/2k/)
 const DRAIN_TS: Record<string, { ga: number; pta: number }> = {
-  HDFS: { ga: 0.9985, pta: 0.7624 }, Hadoop: { ga: 0.9990, pta: 0.7965 },
+  HDFS: { ga: 0.9985, pta: 0.7624 }, Hadoop: { ga: 0.9990, pta: 0.7978 },
   Spark: { ga: 1.0, pta: 0.8976 }, OpenStack: { ga: 0.96, pta: 0.7309 },
   Zookeeper: { ga: 0.9985, pta: 0.8883 }, BGL: { ga: 1.0, pta: 0.8308 },
   HPC: { ga: 0.998, pta: 0.8554 }, Thunderbird: { ga: 0.9805, pta: 0.8339 },
   Linux: { ga: 1.0, pta: 0.8545 }, Mac: { ga: 0.9375, pta: 0.7937 },
   Apache: { ga: 1.0, pta: 0.9211 }, OpenSSH: { ga: 1.0, pta: 0.8114 },
-  Windows: { ga: 0.998, pta: 0.878 }, Android: { ga: 0.9985, pta: 0.7174 },
-  HealthApp: { ga: 1.0, pta: 0.8794 }, Proxifier: { ga: 0.9795, pta: 0.775 },
+  Windows: { ga: 0.998, pta: 0.8780 }, Android: { ga: 0.9985, pta: 0.7174 },
+  HealthApp: { ga: 1.0, pta: 0.8794 }, Proxifier: { ga: 0.9795, pta: 0.7750 },
 };
 
 interface Row {
