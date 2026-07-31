@@ -24,7 +24,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@agentix-e/drain-ts": "^1.0.1",
+    "@agentix-e/drain-ts": "^1.1.1",
     "@agentix-e/log-parser-core": "workspace:*"
   },
   "devDependencies": {

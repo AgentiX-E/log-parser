@@ -60,8 +60,8 @@ importers:
   packages/log-parser-browser:
     dependencies:
       '@agentix-e/drain-ts':
-        specifier: ^1.0.1
-        version: 1.1.0
+        specifier: ^1.1.1
+        version: 1.1.1
       '@agentix-e/log-parser-core':
         specifier: workspace:*
         version: link:../log-parser-core
@@ -88,8 +88,8 @@ importers:
   packages/log-parser-core:
     dependencies:
       '@agentix-e/drain-ts':
-        specifier: ^1.1.0
-        version: 1.1.0
+        specifier: ^1.1.1
+        version: 1.1.1
     optionalDependencies:
       franc-min:
         specifier: ^6.0.0
@@ -159,8 +159,8 @@ importers:
 
 packages:
 
-  '@agentix-e/drain-ts@1.1.0':
-    resolution: {integrity: sha512-psH9uDu7BUgL1mAIUi9wqprHnJNPkp2AkC5vxiWRjRyeCO7ILD11Raw9LXvqSM8RIKmVjXYKogTVbPoFaZ4fUA==}
+  '@agentix-e/drain-ts@1.1.1':
+    resolution: {integrity: sha512-c9oPaDwgG1dkRIUfDxT64q518iRcno5VGMwlmNu90U/qVCfJfBs6p1PMZG197wrL/ISx+l3c9S3RRH8se2746A==}
     engines: {node: '>=22.0.0', pnpm: '>=10.0.0'}
 
   '@ai-sdk/gateway@4.0.32':
@@ -2281,7 +2281,7 @@ packages:
 
 snapshots:
 
-  '@agentix-e/drain-ts@1.1.0': {}
+  '@agentix-e/drain-ts@1.1.1': {}
 
   '@ai-sdk/gateway@4.0.32(zod@3.25.76)':
     dependencies:
