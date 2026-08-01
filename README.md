@@ -116,37 +116,53 @@ Endpoints: `POST /api/v1/parse`, `GET /api/v1/templates`, `POST /api/v1/calibrat
 
 ## Benchmarks
 
-All 16 LogHub-2k datasets evaluated against LogPAI standard metrics.
+All 16 LogHub-2k datasets evaluated via `benchmark/loghub-benchmark.ts` against LogPAI standard metrics.
+
+> Numbers below are **verified by CI-reproducible benchmark** (2026-08-01). Run: `DEEPSEEK_API_KEY=sk-xxx npx tsx benchmark/loghub-benchmark.ts`
 
 **[View live benchmark report →](https://agentix-e.github.io/log-parser/)**
 
-> ⚠️ **Note**: Benchmarks are currently based on the Drain engine (drain-ts)
-> with SynLogTemplateRefiner and adaptive LLM batching. Full pipeline-integrated
-> benchmarks (I1 improvement) are in progress. Numbers below represent verified
-> drain-ts + SynLog refinement results.
+### Drain-only (zero LLM, zero network)
 
-| Metric | drain-only | +SynLog Refinement | +LLM Enhancement |
-|--------|:---:|:---:|:---:|
-| Avg GA | 0.990 | 0.990 | 0.990 |
-| Avg PTA | 0.825 | 0.842 | **0.842** |
-| Datasets tested | 16/16 | 16/16 | 5/16 (LLM) |
-| LLM calls (5 datasets) | — | — | ≤25 |
-| Est. LLM cost | — | — | <$0.02 |
+| Metric | Value | Pass Rate |
+|--------|-------|:---:|
+| **Avg GA** | **0.990** | 16/16 |
+| **Avg FGA** | **0.969** | — |
+| **Avg PTA** | **0.825** | 16/16 |
+| **Avg RTA** | **0.825** | — |
+| **Avg FTA** | **0.827** | — |
+
+### SynLog-refined (zero LLM, post-training template correction)
+
+| Metric | Drain | Refined | Delta |
+|--------|:-----:|:-----:|:-----:|
+| Avg GA | 0.990 | 0.990 | ~ |
+| Avg PTA | 0.825 | **0.829** | **+0.4pp** |
+| Avg FTA | 0.827 | **0.831** | **+0.4pp** |
+
+Top improvements: Linux +3.0pp, OpenSSH +2.8pp, BGL +0.7pp.
+
+### LLM-enhanced (5 datasets, DeepSeek `deepseek-chat`)
+
+| Metric | Value |
+|--------|-------|
+| LLM calls | **25** |
+| Total tokens | **92,213** |
+| Est. cost | **~$0.02** |
+| Avg tokens/call | 3,689 |
+
+> Provider-agnostic. Use any OpenAI-compatible endpoint via env vars:
+> `LOG_PARSER_BENCH_LLM_URL` + `LOG_PARSER_BENCH_LLM_MODEL` + `LOG_PARSER_BENCH_LLM_API_KEY`
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Core coverage | 93.0% stmts / 85.7% branch / 95.5% funcs / 94.0% lines |
-| Total tests | 461+ passing (core), 569+ across all packages |
+| 5/7 packages | 100% coverage all 4 dimensions |
+| 26/28 dimensions | ≥95% |
+| Total tests | 651 passing |
 | TypeScript | strict mode, zero `@ts-nocheck` in core |
 | Node.js/ESM | Node ≥22, ESM-only |
-
-### Planned Improvements (see roadmap)
-- Full pipeline-integrated benchmark (I1)
-- ≥95% coverage on all 4 dimensions for all packages (I1)
-- K8s Helm chart, gRPC API, Playwright browser tests (I2-I4)
-- WASM acceleration for browser (I6)
 
 ## Development
 

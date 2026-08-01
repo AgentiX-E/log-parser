@@ -360,7 +360,7 @@ export class LogParserPipeline {
 
     // Walk back: match refined results to cluster IDs via original refinementInputs order
     let idx = 0;
-    for (const [clusterId, logs] of this.clusterLogs) {
+    for (const [, logs] of this.clusterLogs) {
       if (logs.length < 4) continue;
       const result = results[idx++];
       if (!result || !result.changed) continue;
