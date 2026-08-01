@@ -194,4 +194,44 @@ describe('PostProcessor', () => {
       expect(result.rulesApplied.length).toBeGreaterThan(1);
     });
   });
+
+  // ── correct() integration (I4 continued) ──
+
+  it('correct handles CS rule with mismatched logs', () => {
+    const result = PostProcessor.correct('User <*> logged', ['completely different']);
+    // CS warns when template does not match all logs
+    expect(result.rulesApplied).toContain('CS-warning');
+  });
+
+  it('correct normalizes whitespace consistently', () => {
+    const r = PostProcessor.correct('  a   b  c  ', []);
+    expect(r.template).toBe('a b c');
+  });
+
+  it('correct type-classifies long paths', () => {
+    const result = PostProcessor.correct('File at /a/b/c/d/e/f', []);
+    // Long path gets replaced with <*> by PS rule
+    expect(result.template).toContain('<PATH>');
+  });
+
+  it('correct consolidates digit-rich tokens via DG', () => {
+    const result = PostProcessor.correct('port 8080 processed', []);
+    expect(result.rulesApplied).toContain('DG');
+  });
+
+  it('correct applies BL rule for boolean values', () => {
+    const result = PostProcessor.correct('true false result', []);
+    expect(result.rulesApplied).toContain('BL/US');
+  });
+
+  it('correct applies US rule for null/root', () => {
+    const result = PostProcessor.correct('user null root admin', []);
+    expect(result.rulesApplied).toContain('BL/US');
+    expect(result.template).toContain('<*>');
+  });
+
+  it('correct consolidates consecutive variables via CV', () => {
+    const result = PostProcessor.correct('<*> <*> a', []);
+    expect(result.rulesApplied).toContain('CV');
+  });
 });

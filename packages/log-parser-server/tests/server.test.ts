@@ -431,4 +431,60 @@ describe('Log Parser Server', () => {
     expect(res.statusCode).toBe(500);
     await server.stop();
   });
+
+  // ── GET /api/v1/metrics (I4 continued) ──
+
+  it('GET /api/v1/metrics returns prometheus-style metrics', async () => {
+    const fastify = await initServer();
+    // Parse some logs first to populate stats
+    await fastify.inject({ method: 'POST', url: '/api/v1/parse', payload: { log: 'test message' } });
+    const res = await fastify.inject({ method: 'GET', url: '/api/v1/metrics' });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body).toHaveProperty('log_parser_logs_total');
+    expect(body.log_parser_logs_total).toBeGreaterThan(0);
+    expect(body).toHaveProperty('log_parser_template_count');
+  });
+
+  // ── POST /api/v1/parse error edge cases ──
+
+  it('POST /api/v1/parse rejects request with neither log nor logs', async () => {
+    const fastify = await initServer();
+    const res = await fastify.inject({
+      method: 'POST',
+      url: '/api/v1/parse',
+      payload: { other: 'value' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  // ── Pipeline lifecycle with instrumented pipeline ──
+
+  it('parse endpoint returns instrumented result when pipeline is wired', async () => {
+    const fastify = await initServer();
+    const res = await fastify.inject({
+      method: 'POST',
+      url: '/api/v1/parse',
+      payload: { log: 'User alice logged in from 10.0.0.1' },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.results).toHaveLength(1);
+    // Instrumented pipeline adds traceId and parseDurationMs
+    expect(body.results[0]).toHaveProperty('traceId');
+    expect(body.results[0]).toHaveProperty('parseDurationMs');
+  });
+
+  it('parse endpoint with batch uses instrumented pipeline', async () => {
+    const fastify = await initServer();
+    const res = await fastify.inject({
+      method: 'POST',
+      url: '/api/v1/parse',
+      payload: { logs: ['log a', 'log b'] },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.results).toHaveLength(2);
+    expect(body.results[0]).toHaveProperty('traceId');
+  });
 });
