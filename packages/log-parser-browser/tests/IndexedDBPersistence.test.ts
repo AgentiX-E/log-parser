@@ -176,4 +176,21 @@ describe('IndexedDBPersistence', () => {
     expect(persistence.isInitialized()).toBe(true);
     expect(persistence.isInitialized()).toBe(true); // Call twice for good measure
   });
+
+  it('init rejects with unknown error when request.error has no message', async () => {
+    const fakeRequest = {
+      result: null as unknown as IDBDatabase,
+      error: { get message(): string | undefined { return undefined; } } as DOMException,
+      onsuccess: null as unknown as ((ev: Event) => void) | null,
+      onerror: null as unknown as ((ev: Event) => void) | null,
+      onupgradeneeded: null as unknown as (() => void) | null,
+    };
+    const openSpy = vi.spyOn(indexedDB, 'open').mockImplementation(() => {
+      queueMicrotask(() => { if (fakeRequest.onerror) fakeRequest.onerror({} as Event); });
+      return fakeRequest as unknown as IDBOpenDBRequest;
+    });
+    const persistence = new IndexedDBPersistence();
+    await expect(persistence.init()).rejects.toThrow('unknown error');
+    openSpy.mockRestore();
+  });
 });
