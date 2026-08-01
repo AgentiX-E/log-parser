@@ -122,6 +122,17 @@ All 16 LogHub-2k datasets evaluated via `benchmark/loghub-benchmark.ts` against 
 
 **[View live benchmark report →](https://agentix-e.github.io/log-parser/)**
 
+### Head-to-head vs drain-ts (LogHub-2k, 16 datasets)
+
+| Metric | drain-ts (default) | log-parser Drain | log-parser SynLog |
+|--------|:-----:|:-----:|:-----:|
+| **Avg GA** | 0.943 | **0.990** (+4.7pp) | 0.990 |
+| **Avg PTA** | 0.825 | 0.825 | **0.829** (+0.4pp) |
+| **Avg FTA** | — | 0.827 | **0.831** |
+
+log-parser's tuned config matches or exceeds drain-ts defaults on every dataset.
+Standout gains: Proxifier +61.4pp GA, OpenStack +8.5pp GA, Zookeeper +7.3pp PTA.
+
 ### Drain-only (zero LLM, zero network)
 
 | Metric | Value | Pass Rate |

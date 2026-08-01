@@ -28,6 +28,7 @@ import type {
 import {
   TemplateMiner,
   TemplateMinerConfig,
+  DEFAULT_MASKING_INSTRUCTIONS,
   EXTENDED_MASKING_INSTRUCTIONS,
 } from "@agentix-e/drain-ts";
 
@@ -521,6 +522,9 @@ export interface BenchmarkRow {
   fta: number;
   gaPass: boolean;
   ptaPass: boolean;
+  // drain-ts default (no per-dataset tuning)
+  drainTsGa: number;
+  drainTsPta: number;
   // Refined metrics
   refinedGa: number;
   refinedFga: number;
@@ -716,8 +720,46 @@ async function batchRefineClusters(
   return { results, tokensConsumed: tokens };
 }
 
+/**
+ * Run drain-ts with its DEFAULT masking config (no per-dataset tuning).
+ * This is the "naive" baseline — what you get with zero config.
+ */
+async function runDrainTsDefault(
+  ds: DatasetDescriptor,
+  messages: readonly string[],
+  groundTruth: GroundTruthEntry[],
+): Promise<EvaluationResult> {
+  const miner = new TemplateMiner({
+    config: TemplateMinerConfig.from({
+      simTh: 0.4,
+      depth: 4,
+      maxChildren: 100,
+      maskingInstructions: DEFAULT_MASKING_INSTRUCTIONS,
+    }),
+  });
+
+  const drainResults: Array<{ templateId: number; template: string }> = [];
+  for (const msg of messages) {
+    const result = miner.addLogMessage(msg);
+    drainResults.push({
+      templateId: result.clusterId,
+      template: result.templateMined,
+    });
+  }
+
+  const parsed: ParsedEntry[] = drainResults.map(r => ({
+    clusterId: r.templateId,
+    templateTokens: r.template.split(" "),
+  }));
+
+  return evaluate(groundTruth, parsed);
+}
+
 export async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
   const { messages, groundTruth } = await loadDataset(ds);
+
+  // ── Path A0: drain-ts DEFAULT config (no tuning, for baseline comparison) ──
+  const drainTsDefault = await runDrainTsDefault(ds, messages, groundTruth);
 
   // ── Path A: Raw drain-ts evaluation (direct TemplateMiner, for comparison) ──
   const masking = ds.disableMasking ? [] : EXTENDED_MASKING_INSTRUCTIONS;
@@ -811,6 +853,7 @@ export async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
     }
     return {
       dataset: ds.name, category: ds.category,
+      drainTsGa: drainTsDefault.groupAccuracy, drainTsPta: drainTsDefault.parsingTemplateAccuracy,
       ga: drainEval.groupAccuracy, fga: drainEval.f1GroupAccuracy,
       pta: drainEval.parsingTemplateAccuracy, rta: drainEval.recallTemplateAccuracy,
       fta: drainEval.f1TemplateAccuracy,
@@ -897,6 +940,8 @@ export async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
   return {
     dataset: ds.name,
     category: ds.category,
+    drainTsGa: drainTsDefault.groupAccuracy,
+    drainTsPta: drainTsDefault.parsingTemplateAccuracy,
     ga: drainEval.groupAccuracy,
     fga: drainEval.f1GroupAccuracy,
     pta: drainEval.parsingTemplateAccuracy,
@@ -958,7 +1003,8 @@ async function main(): Promise<void> {
 
       const llmTag = ds.useLLM ? " [LLM]" : "";
       // Side-by-side output per dataset
-      console.log(`${(row.dataset + llmTag).padEnd(18)} ` +
+      console.log(`${(row.dataset + llmTag).padEnd(14)} ` +
+        `dTs:${pct(row.drainTsGa)}/${pct(row.drainTsPta).padEnd(5)} ` +
         `GA:${pct(row.ga)}→${pct(row.refinedGa)}${delta(row.ga, row.refinedGa).padEnd(8)} ` +
         `PTA:${pct(row.pta)}→${pct(row.refinedPta)}${delta(row.pta, row.refinedPta).padEnd(8)} ` +
         `RTA:${pct(row.rta)}→${pct(row.refinedRta)}${delta(row.rta, row.refinedRta).padEnd(8)} ` +
@@ -969,6 +1015,10 @@ async function main(): Promise<void> {
   }
 
   if (rows.length === 0) { console.log("\nNo results."); return; }
+
+  // Summary: drain-ts default averages
+  const avgDtsGA = rows.reduce((s, r) => s + r.drainTsGa, 0) / rows.length;
+  const avgDtsPTA = rows.reduce((s, r) => s + r.drainTsPta, 0) / rows.length;
 
   // Summary: Drain averages
   const avgGA = rows.reduce((s, r) => s + r.ga, 0) / rows.length;
@@ -989,10 +1039,10 @@ async function main(): Promise<void> {
   const refPtaPass = rows.filter(r => r.refinedPtaPass).length;
 
   console.log(`\n=== SUMMARY (${rows.length} datasets) ===`);
-  console.log(`                     Drain       Refined      Delta`);
-  console.log(`Average GA:     ${pct(avgGA).padEnd(10)}  ${pct(avgRefGA).padEnd(10)}  ${delta(avgGA, avgRefGA)}`);
+  console.log(`                drain-ts(def)    Drain       Refined      Delta(drain->refined)`);
+  console.log(`Average GA:     ${pct(avgDtsGA).padEnd(12)}  ${pct(avgGA).padEnd(10)}  ${pct(avgRefGA).padEnd(10)}  ${delta(avgGA, avgRefGA)}`);
   console.log(`Average FGA:    ${pct(avgFGA).padEnd(10)}  ${pct(avgRefFGA).padEnd(10)}  ${delta(avgFGA, avgRefFGA)}`);
-  console.log(`Average PTA:    ${pct(avgPTA).padEnd(10)}  ${pct(avgRefPTA).padEnd(10)}  ${delta(avgPTA, avgRefPTA)}`);
+  console.log(`Average PTA:    ${pct(avgDtsPTA).padEnd(12)}  ${pct(avgPTA).padEnd(10)}  ${pct(avgRefPTA).padEnd(10)}  ${delta(avgPTA, avgRefPTA)}`);
   console.log(`Average RTA:    ${pct(avgRTA).padEnd(10)}  ${pct(avgRefRTA).padEnd(10)}  ${delta(avgRTA, avgRefRTA)}`);
   console.log(`Average FTA:    ${pct(avgFTA).padEnd(10)}  ${pct(avgRefFTA).padEnd(10)}  ${delta(avgFTA, avgRefFTA)}`);
 
