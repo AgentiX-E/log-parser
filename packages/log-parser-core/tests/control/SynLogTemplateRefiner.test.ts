@@ -311,4 +311,31 @@ describe('SynLogTemplateRefiner', () => {
       expect(hash).toHaveLength(16);
     });
   });
+
+  it('isNumber returns true for hex-prefixed tokens', () => {
+    expect(refiner.isNumber('0x1a2b3c')).toBe(true);
+  });
+
+  it('isNumber returns true for long hex strings', () => {
+    expect(refiner.isNumber('deadbeef123')).toBe(true);
+  });
+
+  it('isNumber returns false for non-hex alpha', () => {
+    expect(refiner.isNumber('ab12g')).toBe(false);
+  });
+
+  it('hashTemplate produces deterministic 16-char hex', () => {
+    const h = SynLogTemplateRefiner.hashTemplate('User <*> logged');
+    expect(h).toHaveLength(16);
+    expect(SynLogTemplateRefiner.hashTemplate('User <*> logged')).toBe(h);
+  });
+
+  it('hashTemplate differs for different templates', () => {
+    expect(SynLogTemplateRefiner.hashTemplate('a')).not.toBe(SynLogTemplateRefiner.hashTemplate('b'));
+  });
+
+  it('anonymizeNumbers converts digit-dominant tokens', () => {
+    const result = refiner.anonymizeNumbers('token 123abc 456');
+    expect(result).toContain('<*>');
+  });
 });

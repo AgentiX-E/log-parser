@@ -234,4 +234,29 @@ describe('PostProcessor', () => {
     const result = PostProcessor.correct('<*> <*> a', []);
     expect(result.rulesApplied).toContain('CV');
   });
+
+  it('correct handles path with trailing slash', () => {
+    const result = PostProcessor.correct('dir /usr/bin/', []);
+    expect(result.template).toContain('<PATH>');
+  });
+
+  it('correct handles digit-dominant token 123abc', () => {
+    const result = PostProcessor.correct('code 123abc result', []);
+    expect(result.template).toContain('<*>');
+  });
+
+  it('correct preserves alpha-prefixed tokens', () => {
+    const result = PostProcessor.correct('value abc123 kept', []);
+    expect(result.template).not.toContain('<*>');
+  });
+
+  it('typePaths handles backslash Windows paths', () => {
+    const result = PostProcessor.typePaths('File at C:/Windows/System32/log.txt');
+    expect(result).toContain('<PATH>');
+  });
+
+  it('typeHostnames excludes @-containing tokens', () => {
+    const result = PostProcessor.typeHostnames('user@example.com from api.example.com');
+    expect(result).toContain('<HOSTNAME>');
+  });
 });

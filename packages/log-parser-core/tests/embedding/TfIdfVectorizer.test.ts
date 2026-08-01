@@ -103,4 +103,14 @@ describe('TfIdfVectorizer', () => {
     expect(vec.getIdf('world')).toBeGreaterThan(0);
     expect(vec.getIdf('unknown')).toBe(0);
   });
+
+  it('should throw when transform() called before fitTransform()', () => {
+    const vec = new TfIdfVectorizer();
+    expect(() => vec.transform(['a', 'b'])).toThrow(/must be fitted/);
+  });
+
+  it('should throw when transform() called before fitTransform() with empty tokens', () => {
+    const vec = new TfIdfVectorizer();
+    expect(() => vec.transform([])).toThrow(/must be fitted/);
+  });
 });
