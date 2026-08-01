@@ -262,4 +262,13 @@ describe('ConfigAutoTuner', () => {
     expect(result.bestScore).toBeGreaterThanOrEqual(0);
     expect(result.bestScore).toBeLessThanOrEqual(1);
   });
+
+  it('explores all engine types with high maxIterations', async () => {
+    const dataset = makeDataset(10);
+    const tuner = new ConfigAutoTuner(dataset);
+    // High maxIter to ensure engine exploration happens
+    const result = await tuner.tune({ maxIterations: 50, exploreEngine: true, exploreBooleans: true });
+    expect(result.bestConfig).toBeDefined();
+    expect(result.evaluations).toBeGreaterThan(10);
+  });
 });
