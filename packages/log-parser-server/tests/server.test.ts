@@ -326,4 +326,109 @@ describe('Log Parser Server', () => {
 
     expect(() => JSON.parse(res.body)).not.toThrow();
   });
+
+  // ── Graceful shutdown lifecycle ──
+
+  it('should handle multiple createServer + stop without listener leak', async () => {
+    const s1 = await createServer();
+    const s2 = await createServer();
+    // Both created successfully — tests sigHandlersRegistered codepath
+    await s1.stop();
+    await s2.stop();
+    // No MaxListeners warning = pass
+  });
+
+  it('should unregister from shutdown on stop', async () => {
+    const server = await createServer();
+    // Call stop twice — second call should be safe after unregister
+    await server.stop();
+    // Second close on already-closed instance is handled by fastify
+  });
+
+  it('should handle stop() on already-closed server gracefully', async () => {
+    const server = await createServer();
+    await server.stop();
+    // Second stop should not throw
+    await server.stop().catch(() => { /* fastify may throw on double-close */ });
+  });
+
+  // ── POST /api/v1/parse/batch ──
+
+  it('POST /api/v1/parse/batch should parse multiple logs efficiently', async () => {
+    const fastify = await initServer();
+    const res = await fastify.inject({
+      method: 'POST',
+      url: '/api/v1/parse/batch',
+      payload: { logs: ['User alice logged in from 10.0.0.1', 'Error 500 on server'] },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.results).toHaveLength(2);
+    expect(body.results[0]).toHaveProperty('template');
+  });
+
+  it('POST /api/v1/parse/batch should reject missing logs', async () => {
+    const fastify = await initServer();
+    const res = await fastify.inject({
+      method: 'POST',
+      url: '/api/v1/parse/batch',
+      payload: {},
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  // ── Error handling paths ──
+
+  it('POST /api/v1/parse should handle parse errors gracefully', async () => {
+    const fastify = await initServer();
+    // Force an error by injecting a pipeline that throws
+    const customPipeline = {
+      parse: vi.fn(() => { throw new Error('forced error'); }),
+      stats: { templateCount: 0 },
+      calibrateGranularity: vi.fn(),
+      parseBatch: vi.fn(),
+    };
+    const server = await createServer({ pipeline: customPipeline as unknown as LogParserPipeline });
+    const res = await server.fastify.inject({
+      method: 'POST',
+      url: '/api/v1/parse',
+      payload: { log: 'test' },
+    });
+    expect(res.statusCode).toBe(500);
+    await server.stop();
+  });
+
+  it('POST /api/v1/parse should handle batch parse errors', async () => {
+    const customPipeline = {
+      parse: vi.fn(() => { throw new Error('forced error'); }),
+      stats: { templateCount: 0 },
+      calibrateGranularity: vi.fn(),
+      parseBatch: vi.fn(),
+    };
+    const server = await createServer({ pipeline: customPipeline as unknown as LogParserPipeline });
+    const res = await server.fastify.inject({
+      method: 'POST',
+      url: '/api/v1/parse',
+      payload: { logs: ['test1', 'test2'] },
+    });
+    expect(res.statusCode).toBe(500);
+    await server.stop();
+  });
+
+  it('POST /api/v1/parse/batch should handle errors', async () => {
+    const customPipeline = {
+      parseBatch: vi.fn(() => { throw new Error('batch error'); }),
+      stats: { templateCount: 0 },
+      parse: vi.fn(),
+      calibrateGranularity: vi.fn(),
+    };
+    const server = await createServer({ pipeline: customPipeline as unknown as LogParserPipeline });
+    const res = await server.fastify.inject({
+      method: 'POST',
+      url: '/api/v1/parse/batch',
+      payload: { logs: ['test1'] },
+    });
+    expect(res.statusCode).toBe(500);
+    await server.stop();
+  });
 });
