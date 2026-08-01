@@ -317,5 +317,34 @@ describe('LogParserPipeline', () => {
       const state = pipeline.exportState();
       expect(state.clusterLogsCount).toBeGreaterThanOrEqual(1);
     });
+
+    // ── ModelRouter auto-creation (I2) ──
+
+    it('auto-creates ModelRouter when local and remote LLM providers given', () => {
+      const local = createMockLLMProvider();
+      const remote = createMockLLMProvider();
+      const pipeline = new LogParserPipeline({
+        localLlmProvider: local,
+        remoteLlmProvider: remote,
+      });
+      expect(pipeline.llm).toBe(local);
+    });
+
+    it('localLlmProvider without remote uses single-model mode', () => {
+      const local = createMockLLMProvider();
+      const pipeline = new LogParserPipeline({ localLlmProvider: local });
+      expect(pipeline.llm).toBe(local);
+    });
+
+    it('modelRouter can be injected directly alongside llmProvider', () => {
+      const llm = createMockLLMProvider();
+      const router = { select: vi.fn().mockReturnValue(llm) };
+      const pipeline = new LogParserPipeline({
+        llmProvider: llm,
+        modelRouter: router as any,
+      });
+      expect(pipeline.llm).toBe(llm);
+    });
+
   });
 });

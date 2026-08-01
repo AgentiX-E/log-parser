@@ -29,8 +29,12 @@ export interface LogParserPipelineConfig {
   readonly llmProvider?: ILLMProvider;
   /** Embedding provider. undefined = built-in TF-IDF. */
   readonly embeddingProvider?: IEmbeddingProvider;
-  /** Model router for multi-model LLM selection. */
+  /** Model router for multi-model LLM selection. Auto-created if local+remote providers given. */
   readonly modelRouter?: ModelRouter;
+  /** Local (fast/free) LLM provider for ModelRouter routing. */
+  readonly localLlmProvider?: ILLMProvider;
+  /** Remote (powerful) LLM provider for ModelRouter routing. */
+  readonly remoteLlmProvider?: ILLMProvider;
   /** Pipeline layer configuration (merged with defaults). */
   readonly layers?: Partial<PipelineLayerConfig>;
   /** Pre-configured multi-language tokenizer (optional). */
@@ -113,9 +117,24 @@ export class LogParserPipeline {
   private nextLogId = 0;
 
   constructor(pipelineConfig: LogParserPipelineConfig = {}) {
-    this.llmProvider = pipelineConfig.llmProvider;
+    // Resolve LLM provider: explicit provider > modelRouter > local/remote pair > none
+    this.llmProvider = pipelineConfig.llmProvider
+      ?? pipelineConfig.localLlmProvider
+      ?? undefined;
+
     this.embeddingProvider = pipelineConfig.embeddingProvider;
-    this.modelRouter = pipelineConfig.modelRouter;
+
+    // Auto-create ModelRouter when local + remote providers are given
+    // and no explicit modelRouter was provided.
+    if (pipelineConfig.modelRouter) {
+      this.modelRouter = pipelineConfig.modelRouter;
+    } else if (pipelineConfig.localLlmProvider && pipelineConfig.remoteLlmProvider) {
+      this.modelRouter = new ModelRouter(
+        pipelineConfig.localLlmProvider,
+        pipelineConfig.remoteLlmProvider,
+      );
+    }
+
     this.classifier = pipelineConfig.classifier;
     this.config = {
       ...defaultPipelineConfig(),
