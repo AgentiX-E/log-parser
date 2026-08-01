@@ -559,7 +559,41 @@ function getDrainConfig(ds: DatasetDescriptor): DrainDataPlaneConfig {
 
 
 // ============================================================
-// Adaptive batch refinement — model-agnostic, context-window-aware
+// LLM Provider configuration for benchmark
+// ============================================================
+
+/**
+ * OpenAI-compatible LLM provider configuration for the benchmark.
+ *
+ * Defaults to DeepSeek (zero config for current users), but any
+ * OpenAI-compatible endpoint works: Ollama, OpenAI, Anthropic, etc.
+ *
+ * Override via environment variables:
+ *   LOG_PARSER_BENCH_LLM_URL    → API endpoint (default: https://api.deepseek.com/v1)
+ *   LOG_PARSER_BENCH_LLM_MODEL  → Model ID (default: deepseek-chat)
+ *   LOG_PARSER_BENCH_LLM_API_KEY → API key (default: DEEPSEEK_API_KEY)
+ */
+export interface BenchmarkLLMConfig {
+  /** Full chat completions endpoint URL (e.g. https://api.openai.com/v1/chat/completions) */
+  readonly apiUrl: string;
+  /** Model identifier (e.g. gpt-4o-mini, deepseek-chat, qwen2.5:7b) */
+  readonly model: string;
+  /** API key / bearer token */
+  readonly apiKey: string;
+}
+
+/** Resolve benchmark LLM config from environment or defaults. */
+export function resolveBenchmarkLLMConfig(): BenchmarkLLMConfig {
+  const baseUrl = process.env.LOG_PARSER_BENCH_LLM_URL ?? 'https://api.deepseek.com/v1';
+  return {
+    apiUrl: `${baseUrl}/chat/completions`,
+    model: process.env.LOG_PARSER_BENCH_LLM_MODEL ?? 'deepseek-chat',
+    apiKey: process.env.LOG_PARSER_BENCH_LLM_API_KEY ?? process.env.DEEPSEEK_API_KEY ?? '',
+  };
+}
+
+// ============================================================
+// Adaptive batch refinement — provider-agnostic, context-window-aware
 // ============================================================
 
 function estimateTokens(logs: string[]): number {
@@ -607,25 +641,26 @@ function buildBatchPrompt(
 
 async function batchRefineClusters(
   clusters: Array<{ templateId: number; logs: string[]; template: string }>,
-  apiKey: string,
+  config: BenchmarkLLMConfig,
   domain?: string,
 ): Promise<{ results: Array<{ templateId: number; template: string; confidence: number }>; tokensConsumed: number }> {
   const prompt = buildBatchPrompt(clusters, domain);
   // Scale max_tokens with batch size: ~40 tokens per cluster for template output
   const outTokens = Math.max(1024, Math.min(8192, clusters.length * 40));
   const body = JSON.stringify({
-    model: "deepseek-chat",
+    model: config.model,
     messages: [
       { role: "system", content: PromptBuilder.SYSTEM_PROMPT },
       { role: "user", content: prompt },
     ],
     temperature: 0,
     max_tokens: outTokens,
-    response_format: { type: "json_object" },
+    // json_object response format is OpenAI-compatible; omit for providers that don't support it
+    ...(config.apiUrl.includes('deepseek') || config.apiUrl.includes('openai') ? { response_format: { type: "json_object" } } : {}),
   });
 
-  const r = await fetch("https://api.deepseek.com/v1/chat/completions", {
-    method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }, body,
+  const r = await fetch(config.apiUrl, {
+    method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.apiKey}` }, body,
   });
   if (!r.ok) { const e = await r.text().catch(() => ""); throw new Error(`API ${r.status}: ${e.slice(0, 200)}`); }
 
@@ -746,8 +781,8 @@ export async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
 
   if (ds.useLLM) {
     // ── Adaptive batch refinement (packs N clusters per API call) ──
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (!apiKey) throw new Error("DEEPSEEK_API_KEY not set");
+    const llmConfig = resolveBenchmarkLLMConfig();
+    if (!llmConfig.apiKey) throw new Error("No API key configured. Set DEEPSEEK_API_KEY or LOG_PARSER_BENCH_LLM_API_KEY in environment.");
 
     const allClusters = drainTemplateIds.map(tid => ({
       templateId: tid,
@@ -760,7 +795,7 @@ export async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
 
     for (const batch of batches) {
       llmCalls++;
-      const { results, tokensConsumed: batchTokens } = await batchRefineClusters(batch, apiKey, ds.name.toLowerCase());
+      const { results, tokensConsumed: batchTokens } = await batchRefineClusters(batch, llmConfig, ds.name.toLowerCase());
       llmTokens += batchTokens;
 
       for (const r of results) {
