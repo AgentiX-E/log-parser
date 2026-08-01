@@ -46,4 +46,23 @@ describe('PromptBuilder', () => {
     ];
     for (const t of types) expect(PromptBuilder.SYSTEM_PROMPT).toContain(t);
   });
+
+  // ── buildWithExamples (I4 continued) ──
+
+  it('buildWithExamples returns base when domain is missing', () => {
+    const result = PromptBuilder.buildWithExamples(['log a']);
+    expect(result).toContain('log a');
+    expect(result).not.toContain('Here are examples');
+  });
+
+  it('buildWithExamples returns base when domain not in FEW_SHOT', () => {
+    const result = PromptBuilder.buildWithExamples(['log a'], 'nonexistent');
+    expect(result).toContain('log a');
+    expect(result).not.toContain('Here are examples');
+  });
+
+  it('buildWithExamples includes examples for openstack domain', () => {
+    const result = PromptBuilder.buildWithExamples(['test log'], 'openstack');
+    expect(result).toContain('Here are examples');
+  });
 });
