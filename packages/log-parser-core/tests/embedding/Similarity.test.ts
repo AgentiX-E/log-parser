@@ -77,4 +77,8 @@ describe('jaccardSimilarity', () => {
     expect(jaccardSimilarity(['x'], ['x'])).toBe(1);
     expect(jaccardSimilarity(['x'], ['y'])).toBe(0);
   });
+
+  it('should handle edge case where one set is subset of other', () => {
+    expect(jaccardSimilarity(['a'], ['a', 'b', 'c'])).toBeCloseTo(1/3, 5);
+  });
 });

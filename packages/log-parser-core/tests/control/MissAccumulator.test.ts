@@ -62,4 +62,20 @@ describe('MissAccumulator', () => {
     const acc = new MissAccumulator({ maxSize: 10, maxWaitMs: 5000 }, onBatch);
     expect(acc.pending).toBe(0);
   });
+
+  it('flush with empty buffer is a no-op', async () => {
+    const handler = vi.fn();
+    const acc = new MissAccumulator({ maxSize: 10, maxWaitMs: 100 }, handler);
+    await acc.flush();
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('multiple pushes below threshold do not trigger batch until timeout', () => {
+    const handler = vi.fn();
+    const acc = new MissAccumulator({ maxSize: 50, maxWaitMs: 10000 }, handler);
+    for (let i = 0; i < 10; i++) {
+      acc.push({ logMessage: `msg ${i}`, tokens: ['a'], timestamp: Date.now() });
+    }
+    expect(handler).not.toHaveBeenCalled();
+  });
 });

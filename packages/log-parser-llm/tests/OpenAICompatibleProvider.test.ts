@@ -145,4 +145,39 @@ describe('OpenAICompatibleProvider', () => {
   it('custom default baseURL branch', () => {
     expect(new OpenAICompatibleProvider({ provider: 'custom', model: 'm' }).modelId).toBe('custom/m');
   });
+
+  // ── Branch coverage edge cases ──
+
+  it('happy path: usage has promptTokens but not completionTokens', async () => {
+    gObj.mockResolvedValueOnce(mockObj({ object: { template: 't', variables: [], confidence: 1 }, usage: { promptTokens: 10 } }) as never);
+    const r = await new OpenAICompatibleProvider({ provider: 'ollama', model: 'q' }).extractTemplate(['l']);
+    expect(r.usage).toEqual({ promptTokens: 10, completionTokens: 0 });
+  });
+
+  it('fallback: JSON missing template field uses raw text', async () => {
+    gObj.mockRejectedValueOnce(new Error('fail'));
+    gTxt.mockResolvedValueOnce({ text: '{"confidence":0.8,"variables":[]}', usage: undefined, finishReason: 'stop', warnings: undefined, rawResponse: { headers: {} }, response: {} as Response } as never);
+    const r = await new OpenAICompatibleProvider({ provider: 'ollama', model: 'q' }).extractTemplate(['l']);
+    expect(r.template).toBe('{"confidence":0.8,"variables":[]}');
+  });
+
+  it('fallback: usage has no promptTokens defaults to 0', async () => {
+    gObj.mockRejectedValueOnce(new Error('fail'));
+    gTxt.mockResolvedValueOnce({ text: '{"template":"t","variables":[],"confidence":0.8}', usage: { completionTokens: 5 }, finishReason: 'stop', warnings: undefined, rawResponse: { headers: {} }, response: {} as Response } as never);
+    const r = await new OpenAICompatibleProvider({ provider: 'ollama', model: 'q' }).extractTemplate(['l']);
+    expect(r.usage).toEqual({ promptTokens: 0, completionTokens: 5 });
+  });
+
+  it('happy path: usage empty object defaults both tokens to 0', async () => {
+    gObj.mockResolvedValueOnce(mockObj({ object: { template: 't', variables: [], confidence: 1 }, usage: {} }) as never);
+    const r = await new OpenAICompatibleProvider({ provider: 'ollama', model: 'q' }).extractTemplate(['l']);
+    expect(r.usage).toEqual({ promptTokens: 0, completionTokens: 0 });
+  });
+
+  it('fallback: usage empty object defaults both tokens to 0', async () => {
+    gObj.mockRejectedValueOnce(new Error('fail'));
+    gTxt.mockResolvedValueOnce({ text: '{"template":"t","variables":[],"confidence":0.8}', usage: {}, finishReason: 'stop', warnings: undefined, rawResponse: { headers: {} }, response: {} as Response } as never);
+    const r = await new OpenAICompatibleProvider({ provider: 'ollama', model: 'q' }).extractTemplate(['l']);
+    expect(r.usage).toEqual({ promptTokens: 0, completionTokens: 0 });
+  });
 });
