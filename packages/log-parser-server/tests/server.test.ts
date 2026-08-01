@@ -487,4 +487,26 @@ describe('Log Parser Server', () => {
     expect(body.results).toHaveLength(2);
     expect(body.results[0]).toHaveProperty('traceId');
   });
+
+  // ── Shutdown handler coverage (I4 continued) ──
+
+  it('should trigger graceful shutdown via SIGTERM callback', async () => {
+    // Save original exit and mock it
+    const originalExit = process.exit;
+    const exitSpy = vi.fn() as unknown as typeof process.exit;
+    process.exit = exitSpy;
+
+    try {
+      const server = await createServer();
+      // Manually trigger the shutdown handler that was registered via process.once
+      // We access it by emitting SIGTERM on the process — the handler will call
+      // registeredFastifyRefs cleanup and then process.exit (mocked as spy)
+      process.emit('SIGTERM' as unknown as NodeJS.Signals);
+      // Give async cleanup time to run
+      await new Promise((r) => setTimeout(r, 100));
+      expect(exitSpy).toHaveBeenCalledWith(0);
+    } finally {
+      process.exit = originalExit;
+    }
+  });
 });
