@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 import { LogParserPipeline } from '@agentix-e/log-parser-core';
+import { instrumentPipeline } from './telemetry.js';
 
 // Module-level signal handler state — ensures handlers are registered once
 // across multiple createServer() calls (critical for test suites).
@@ -66,6 +67,7 @@ export interface ServerInstance {
 export async function createServer(config: ServerConfig = {}): Promise<ServerInstance> {
   const fastify = Fastify({ logger: true });
   const pipeline = config.pipeline ?? new LogParserPipeline();
+  const instrumented = instrumentPipeline(pipeline);
   const startTime = Date.now();
 
   // POST /api/v1/parse — parse a single log or batch of logs
@@ -86,14 +88,14 @@ export async function createServer(config: ServerConfig = {}): Promise<ServerIns
       const body = request.body as { log?: string; logs?: string[] };
       if (body.log) {
         try {
-          return { results: [pipeline.parse(body.log)] };
+          return { results: [instrumented.parse(body.log)] };
         } catch (err) {
           return reply.status(500).send({ error: 'Parse failed', detail: String(err) });
         }
       }
       if (body.logs) {
         try {
-          return { results: body.logs.map((l) => pipeline.parse(l)) };
+          return { results: body.logs.map((l) => instrumented.parse(l)) };
         } catch (err) {
           return reply.status(500).send({ error: 'Parse failed', detail: String(err) });
         }
@@ -167,6 +169,19 @@ export async function createServer(config: ServerConfig = {}): Promise<ServerIns
   // GET /api/v1/stats — return full pipeline statistics
   fastify.get('/api/v1/stats', async () => {
     return pipeline.stats;
+  });
+
+  // GET /api/v1/metrics — Prometheus-compatible metrics endpoint
+  fastify.get('/api/v1/metrics', async () => {
+    const stats = pipeline.stats;
+    return {
+      log_parser_logs_total: stats.totalProcessed,
+      log_parser_drain_hits: stats.drainHits,
+      log_parser_drain_misses: stats.drainMisses,
+      log_parser_llm_calls: stats.llmCalls,
+      log_parser_template_count: stats.templateCount,
+      log_parser_cache_hit_rate: stats.cacheHitRate,
+    };
   });
 
   // GET /api/v1/health — health check endpoint
