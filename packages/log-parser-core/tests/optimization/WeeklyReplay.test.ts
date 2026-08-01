@@ -64,4 +64,19 @@ describe('WeeklyReplay', () => {
     const result = await replay.run(makeLogs(30), makeGroundTruth(30));
     expect(result.config).toBeDefined();
   });
+
+  // ── Default configuration (I4 continued) ──
+
+  it('uses default gaWeight when not specified', async () => {
+    const replay = new WeeklyReplay(undefined, { maxIterations: 2 });
+    const result = await replay.run(['log a', 'log b']);
+    expect(result.configJSON).toBeDefined();
+    expect(result.date).toBeDefined();
+  });
+
+  it('accepts options with no maxIterations', async () => {
+    const replay = new WeeklyReplay(undefined, {});
+    const result = await replay.run(['log x']);
+    expect(result.evaluations).toBeGreaterThan(0);
+  });
 });

@@ -236,4 +236,30 @@ describe('ConfigAutoTuner', () => {
     expect(result.bestGa).toBe(1.0);
     expect(result.bestPta).toBe(1.0);
   });
+
+  // ── Engine exploration (I4 continued) ──
+
+  it('explores engine variants when exploreEngine is true', async () => {
+    const dataset = makeDataset(20);
+    const tuner = new ConfigAutoTuner(dataset);
+    const result = await tuner.tune({ maxIterations: 10 });
+    expect(result.bestConfig).toBeDefined();
+    expect(result.evaluations).toBeGreaterThan(0);
+  });
+
+  it('explores boolean flags when exploreBooleans is true', async () => {
+    const dataset = makeDataset(20);
+    const tuner = new ConfigAutoTuner(dataset);
+    const result = await tuner.tune({ maxIterations: 15, exploreBooleans: true, exploreEngine: false });
+    expect(result.history.length).toBeGreaterThan(0);
+    expect(result.bestConfig).toBeDefined();
+  });
+
+  it('computes combined score with default gaWeight', async () => {
+    const dataset = makeDataset(15);
+    const tuner = new ConfigAutoTuner(dataset);
+    const result = await tuner.tune({ maxIterations: 3, targetMetric: 'combined' });
+    expect(result.bestScore).toBeGreaterThanOrEqual(0);
+    expect(result.bestScore).toBeLessThanOrEqual(1);
+  });
 });

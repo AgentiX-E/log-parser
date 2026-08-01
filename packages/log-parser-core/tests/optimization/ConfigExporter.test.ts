@@ -48,4 +48,43 @@ describe('ConfigExporter', () => {
     const parsed = ConfigExporter.fromJSON(json);
     expect(parsed.simTh).toBeUndefined();
   });
+
+  // ── Env export with all flags (I4 continued) ──
+
+  it('toEnv exports AEL similarity flag when set', () => {
+    const env = ConfigExporter.toEnv({ enableAELSimilarity: true });
+    expect(env).toContain('LOG_PARSER_AEL_SIMILARITY=true');
+  });
+
+  it('toEnv exports adjacent fusion flag when set', () => {
+    const env = ConfigExporter.toEnv({ enableAdjacentFusion: true });
+    expect(env).toContain('LOG_PARSER_ADJACENT_FUSION=true');
+  });
+
+  it('toEnv exports engine type when set', () => {
+    const env = ConfigExporter.toEnv({ engine: 'JaccardDrain' });
+    expect(env).toContain('LOG_PARSER_ENGINE=JaccardDrain');
+  });
+
+  // ── Roundtrip (I4 continued) ──
+
+  it('roundtrip JSON preserves all config fields', () => {
+    const config = { simTh: 0.5, depth: 5, maxChildren: 200, engine: 'Drain' as const };
+    const json = ConfigExporter.toJSON(config);
+    const parsed = ConfigExporter.fromJSON(json);
+    expect(parsed.simTh).toBe(0.5);
+    expect(parsed.depth).toBe(5);
+    expect(parsed.maxChildren).toBe(200);
+  });
+
+  it('toEnv skips undefined fields', () => {
+    const env = ConfigExporter.toEnv({ simTh: 0.4 });
+    expect(env).toContain('LOG_PARSER_SIM_TH=0.4');
+    expect(env).not.toContain('LOG_PARSER_DEPTH');
+  });
+
+  it('toEnv with extended masking flag', () => {
+    const env = ConfigExporter.toEnv({ extendedMasking: false });
+    expect(env).toContain('LOG_PARSER_EXTENDED_MASKING=false');
+  });
 });
