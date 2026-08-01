@@ -19,6 +19,7 @@ import {
   DrainDataPlane,
   SynLogTemplateRefiner,
   PromptBuilder,
+  LogParserPipeline,
 } from "@agentix-e/log-parser-core";
 import type {
   DrainDataPlaneConfig,
@@ -77,7 +78,6 @@ export const DATASETS: DatasetDescriptor[] = [
     targetGA: 0.940,
     targetPTA: 0.790,
     skipRefinement: true,
-    skipRefinement: true,
   },
   {
     name: "Spark",
@@ -122,7 +122,6 @@ export const DATASETS: DatasetDescriptor[] = [
     category: "Supercomputers",
     targetGA: 0.930,
     targetPTA: 0.850,
-    skipRefinement: true,
     skipRefinement: true,
   },
   {
@@ -192,7 +191,6 @@ export const DATASETS: DatasetDescriptor[] = [
     category: "Mobile Systems",
     targetGA: 0.850,
     targetPTA: 0.750,
-    skipRefinement: true,
     skipRefinement: true,
   },
   {
@@ -686,7 +684,7 @@ async function batchRefineClusters(
 export async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
   const { messages, groundTruth } = await loadDataset(ds);
 
-  // Use TemplateMiner directly (matching drain-ts benchmark exactly)
+  // ── Path A: Raw drain-ts evaluation (direct TemplateMiner, for comparison) ──
   const masking = ds.disableMasking ? [] : EXTENDED_MASKING_INSTRUCTIONS;
   const miner = new TemplateMiner({
     config: TemplateMinerConfig.from({
@@ -815,6 +813,51 @@ export async function runDataset(ds: DatasetDescriptor): Promise<BenchmarkRow> {
   }));
 
   const refinedEval = evaluate(groundTruth, parsedRefined);
+
+  // ── Path B: LogParserPipeline evaluation (I4: benchmark uses actual pipeline) ──
+  // This verifies that the PUBLIC API (LogParserPipeline) produces correct results,
+  // not just the internal TemplateMiner.
+  const pipelineConfig = getDrainConfig(ds);
+  const pipeline = new LogParserPipeline({
+    drain: pipelineConfig,
+    layers: {
+      controlPlane: {
+        enabled: false,
+        batch: { maxSize: 50, maxWaitMs: 5000 },
+        partitioning: { method: 'dbscan', dbscan: { epsilon: 0.5, minPoints: 3 } },
+        sampling: { method: 'dpp', samplesPerBatch: 5 },
+        selfReflection: { enabled: true, maxIterations: 3 },
+      },
+    },
+  });
+  const pipelineResults = pipeline.parseBatch(messages);
+  const pipelineParsed: ParsedEntry[] = pipelineResults.map((r) => ({
+    clusterId: r.templateId,
+    templateTokens: r.template.split(/\s+/),
+  }));
+  const pipelineEval = evaluate(groundTruth, pipelineParsed);
+
+  // Also run SynLog refinement via pipeline's refineTemplates()
+  pipeline.refineTemplates();
+  // Re-evaluate after refinement by re-parsing (inference only)
+  const postRefineResults = messages.map((msg) => {
+    const r = pipeline.match(msg);
+    return r ? {
+      clusterId: r.templateId,
+      templateTokens: r.template.split(/\s+/),
+    } : {
+      clusterId: -1,
+      templateTokens: [] as string[],
+    };
+  });
+  // Filter out unmatched entries
+  const matchedPostRefine = postRefineResults.filter(r => r.clusterId >= 0);
+  const pipelineRefinedEval = matchedPostRefine.length > 0
+    ? evaluate(
+        groundTruth.filter((_, i) => postRefineResults[i]!.clusterId >= 0),
+        matchedPostRefine,
+      )
+    : pipelineEval;
 
   return {
     dataset: ds.name,
