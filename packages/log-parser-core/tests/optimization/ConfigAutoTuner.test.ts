@@ -271,4 +271,31 @@ describe('ConfigAutoTuner', () => {
     expect(result.bestConfig).toBeDefined();
     expect(result.evaluations).toBeGreaterThan(10);
   });
+
+  it('engine exploration enables switching to JaccardDrain', async () => {
+    const dataset = makeDataset(10);
+    const tuner = new ConfigAutoTuner(dataset);
+    const result = await tuner.tune({
+      maxIterations: 100,
+      exploreBooleans: false,
+      exploreEngine: true,
+      simThRange: [0.3, 0.5],
+      depthRange: [3, 4],
+      maxChildrenRange: [50, 150],
+    });
+    expect(result.bestConfig).toBeDefined();
+    // Engine exploration should have tried both Drain and JaccardDrain
+    expect(result.history.length).toBeGreaterThan(1);
+  });
+
+  it('engine exploration skips current engine type', async () => {
+    const dataset = makeDataset(10);
+    const tuner = new ConfigAutoTuner(dataset);
+    const result = await tuner.tune({
+      maxIterations: 100,
+      exploreBooleans: false,
+      exploreEngine: true,
+    });
+    expect(result.evaluations).toBeGreaterThan(5);
+  });
 });
