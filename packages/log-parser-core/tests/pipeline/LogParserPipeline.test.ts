@@ -310,6 +310,31 @@ describe('LogParserPipeline', () => {
       expect(typeof changed).toBe('number');
     });
 
+
+    // ── SynLog refinement edge cases (I4) ──
+
+    it('refineTemplates handles multiple clusters', () => {
+      const pipeline = new LogParserPipeline();
+      // Create 2 distinct clusters, each with 5 samples
+      for (let i = 0; i < 5; i++) {
+        pipeline.parse(`User user${i} logged in from 192.168.${i}.1`);
+      }
+      for (let i = 0; i < 5; i++) {
+        pipeline.parse(`ERROR disk full on /dev/sda${i}`);
+      }
+      const changed = pipeline.refineTemplates();
+      expect(typeof changed).toBe('number');
+    });
+
+    it('refineTemplates returns 0 for single-sample clusters', () => {
+      const pipeline = new LogParserPipeline();
+      pipeline.parse('unique one-off message number one');
+      pipeline.parse('unique one-off message number two');
+      pipeline.parse('unique one-off message number three');
+      // Each cluster has 1 entry — SynLog requires >=4
+      expect(pipeline.refineTemplates()).toBe(0);
+    });
+
     it('exportState includes clusterLogsCount', () => {
       const pipeline = new LogParserPipeline();
       pipeline.parse('User alice logged in');
