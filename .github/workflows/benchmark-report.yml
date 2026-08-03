@@ -32,7 +32,7 @@ jobs:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: npx tsx benchmark/loghub-benchmark.ts 2>&1 | tee /tmp/bench-2k.txt
       - name: Upload 2k artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-2k
           path: /tmp/bench-2k.txt
@@ -53,7 +53,7 @@ jobs:
           OUTPUT_DIR: docs/2k
         run: npx tsx benchmark/report.ts < /tmp/bench-2k.txt
       - name: Upload 2k pages artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pages-2k
           path: docs
