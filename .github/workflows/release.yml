@@ -21,11 +21,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'pnpm'
+      - run: pnpm config set approve-builds true 2>/dev/null || true
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm typecheck
@@ -34,11 +37,51 @@ jobs:
       - run: pnpm test:coverage
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # Stage 2 — Publish npm Packages (OIDC + provenance)
+  # Stage 2 — OIDC Dry-Run (pre-validate token exchange before real publish)
   # ═══════════════════════════════════════════════════════════════════════════
-  publish-npm:
+  oidc-check:
     needs: quality
     if: ${{ !cancelled() && needs.quality.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Verify OIDC environment variables
+        run: |
+          echo "::group::OIDC Token Diagnostics"
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+            echo "❌ ACTIONS_ID_TOKEN_REQUEST_URL is empty"
+            exit 1
+          fi
+          echo "✓ ACTIONS_ID_TOKEN_REQUEST_URL is set"
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+            echo "❌ ACTIONS_ID_TOKEN_REQUEST_TOKEN is empty"
+            exit 1
+          fi
+          echo "✓ ACTIONS_ID_TOKEN_REQUEST_TOKEN is set"
+          echo "::endgroup::"
+
+      - name: Pre-check npm registry connectivity
+        run: |
+          echo "::group::npm Registry Connectivity"
+          npm ping || { echo "❌ Cannot reach npm registry"; exit 1; }
+          echo "✓ npm registry reachable"
+          echo "::endgroup::"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Stage 3 — Publish npm Packages (OIDC + provenance)
+  # ═══════════════════════════════════════════════════════════════════════════
+  publish-npm:
+    needs: oidc-check
+    if: ${{ !cancelled() && needs.oidc-check.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -46,20 +89,27 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
           cache: 'pnpm'
 
+      - run: pnpm config set approve-builds true 2>/dev/null || true
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
 
-      # npm 11.x (bundled with Node 24) natively supports OIDC token for
-      # npm publish. Node 22 + npm 10.x uses .npmrc authToken and will E404.
+      # npm 10.x (bundled with node 22) uses .npmrc authToken instead of
+      # OIDC token for the PUT to registry, causing E404 after successful
+      # provenance signing.  npm 11.x (node 24) natively supports OIDC.
       - name: Publish all packages to npm (OIDC + provenance)
+        shell: bash
         run: |
+          set -euo pipefail
+
           PKGS=(
             packages/log-parser-core
             packages/log-parser-node
@@ -69,20 +119,79 @@ jobs:
             packages/log-parser-cli
             packages/log-parser-server
           )
+
+          FAILED=()
+          PUBLISHED=()
+          SKIPPED=()
+
           for pkg in "${PKGS[@]}"; do
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "📦 Processing: ${pkg}"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
             cd "${pkg}"
-            PKG_NAME=$(node -p "require('./package.json').name")
-            PKG_VER=$(node -p "require('./package.json').version")
-            if npm view "${PKG_NAME}@${PKG_VER}" version >/dev/null 2>&1; then
-              echo "⚠ ${PKG_NAME}@${PKG_VER} already published — skipping"
-              cd "$OLDPWD"
+
+            PKG_NAME="$(node -p "require('./package.json').name")"
+            PKG_VER="$(node -p "require('./package.json').version")"
+
+            echo "  Package: ${PKG_NAME}"
+            echo "  Version: ${PKG_VER}"
+
+            # Check if dist/ exists
+            if [ ! -d "dist" ]; then
+              echo "  ❌ dist/ not found — package not built"
+              FAILED+=("${PKG_NAME}")
+              cd ../..
               continue
             fi
-            npm publish --access public --provenance
-            cd "$OLDPWD"
+
+            # Check if version already published
+            if npm view "${PKG_NAME}@${PKG_VER}" version >/dev/null 2>&1; then
+              echo "  ⚠ ${PKG_NAME}@${PKG_VER} already published — skipping"
+              SKIPPED+=("${PKG_NAME}")
+              cd ../..
+              continue
+            fi
+
+            # Publish with provenance
+            echo "  🚀 Publishing ${PKG_NAME}@${PKG_VER} with provenance..."
+            if npm publish --access public --provenance; then
+              echo "  ✅ ${PKG_NAME}@${PKG_VER} published"
+              PUBLISHED+=("${PKG_NAME}")
+            else
+              echo "  ❌ Failed to publish ${PKG_NAME}@${PKG_VER}"
+              FAILED+=("${PKG_NAME}")
+            fi
+
+            cd ../..
           done
 
+          # ── Summary ──
+          echo ""
+          echo "═══════════════════════════════════════════════════════════"
+          echo "                    PUBLISH SUMMARY"
+          echo "═══════════════════════════════════════════════════════════"
+          echo "✅ Published: ${#PUBLISHED[@]}"
+          for p in "${PUBLISHED[@]}"; do echo "   • ${p}"; done
+          echo ""
+          echo "⚠ Skipped: ${#SKIPPED[@]}"
+          for p in "${SKIPPED[@]}"; do echo "   • ${p}"; done
+          echo ""
+          echo "❌ Failed: ${#FAILED[@]}"
+          for p in "${FAILED[@]}"; do echo "   • ${p}"; done
+
+          if [ ${#FAILED[@]} -gt 0 ]; then
+            echo ""
+            echo "Some packages failed to publish."
+            exit 1
+          fi
+
+          echo ""
+          echo "🎉 All packages published successfully!"
+
       - name: npm publish summary
+        if: always()
         run: |
           echo "### 📦 npm Packages Published" >> $GITHUB_STEP_SUMMARY
           echo "| Package | Version |" >> $GITHUB_STEP_SUMMARY

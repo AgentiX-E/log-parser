@@ -4,10 +4,10 @@
   "description": "Convenient OpenAI-compatible LLM provider for the log-parser framework. Implements ILLMProvider using the Vercel AI SDK.",
   "type": "module",
   "module": "./dist/index.js",
-  "types": "./src/index.ts",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
   },
@@ -17,7 +17,7 @@
     "CHANGELOG.md"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --external all --format esm",
+    "build": "tsup src/index.ts --external all --format esm --dts",
     "dev": "tsup src/index.ts --external all --format esm --dts --watch",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
@@ -34,5 +34,9 @@
   },
   "devDependencies": {
     "dotenv": "^17.4.2"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }
