@@ -42,10 +42,11 @@ describe.runIf(hasApiKey)('DeepSeek LLM E2E', () => {
           throw new Error('DeepSeek API error: ' + res.status + ' ' + errText.slice(0, 200));
         }
 
-        const data = await res.json() as Record<string, unknown>;
+        const data = (await res.json()) as Record<string, unknown>;
         const choices = data.choices as Array<Record<string, unknown>> | undefined;
         const usageData = data.usage as Record<string, number> | undefined;
-        const content = (choices?.[0]?.message as Record<string, string> | undefined)?.content ?? '';
+        const content =
+          (choices?.[0]?.message as Record<string, string> | undefined)?.content ?? '';
 
         let template = content;
         let confidence = 0.5;
@@ -68,7 +69,10 @@ describe.runIf(hasApiKey)('DeepSeek LLM E2E', () => {
           variables,
           confidence,
           usage: usageData
-            ? { promptTokens: usageData.prompt_tokens ?? 0, completionTokens: usageData.completion_tokens ?? 0 }
+            ? {
+                promptTokens: usageData.prompt_tokens ?? 0,
+                completionTokens: usageData.completion_tokens ?? 0,
+              }
             : undefined,
         };
       },

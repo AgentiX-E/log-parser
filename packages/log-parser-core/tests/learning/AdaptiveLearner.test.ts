@@ -196,11 +196,7 @@ describe('AdaptiveLearner', () => {
   it('should clamp depth within [3, 8] range', () => {
     // 20 over-splitting corrections → depth should be 8 (max)
     for (let i = 0; i < 20; i++) {
-      learner.learnFromCorrection(
-        `a${i} b${i}`,
-        '<*> <*>',
-        `a${i} b${i}`,
-      );
+      learner.learnFromCorrection(`a${i} b${i}`, '<*> <*>', `a${i} b${i}`);
     }
     expect(learner.recommendedDepth).toBeLessThanOrEqual(8);
     expect(learner.recommendedDepth).toBeGreaterThanOrEqual(3);
@@ -208,11 +204,7 @@ describe('AdaptiveLearner', () => {
     learner.reset();
     // 20 under-splitting corrections → depth should be 3 (min)
     for (let i = 0; i < 20; i++) {
-      learner.learnFromCorrection(
-        `a${i} b${i}`,
-        `a${i} b${i}`,
-        '<*> <*>',
-      );
+      learner.learnFromCorrection(`a${i} b${i}`, `a${i} b${i}`, '<*> <*>');
     }
     expect(learner.recommendedDepth).toBeGreaterThanOrEqual(3);
     expect(learner.recommendedDepth).toBeLessThanOrEqual(8);

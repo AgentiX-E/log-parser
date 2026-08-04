@@ -16,7 +16,7 @@ function registerGlobalShutdown(fastify: FastifyInstance): void {
   sigHandlersRegistered = true;
   registeredFastifyRefs.add(fastify);
 
-  const shutdown = async (signal: string) => {
+  const shutdown = async () => {
     for (const instance of registeredFastifyRefs) {
       try {
         await instance.close();
@@ -27,8 +27,12 @@ function registerGlobalShutdown(fastify: FastifyInstance): void {
     process.exit(0);
   };
 
-  process.once('SIGTERM', () => { void shutdown('SIGTERM'); });
-  process.once('SIGINT', () => { void shutdown('SIGINT'); });
+  process.once('SIGTERM', () => {
+    void shutdown();
+  });
+  process.once('SIGINT', () => {
+    void shutdown();
+  });
 }
 
 function unregisterFromShutdown(fastify: FastifyInstance): void {

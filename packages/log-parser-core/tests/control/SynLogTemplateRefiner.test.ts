@@ -331,7 +331,9 @@ describe('SynLogTemplateRefiner', () => {
   });
 
   it('hashTemplate differs for different templates', () => {
-    expect(SynLogTemplateRefiner.hashTemplate('a')).not.toBe(SynLogTemplateRefiner.hashTemplate('b'));
+    expect(SynLogTemplateRefiner.hashTemplate('a')).not.toBe(
+      SynLogTemplateRefiner.hashTemplate('b'),
+    );
   });
 
   it('anonymizeNumbers converts digit-dominant tokens', () => {

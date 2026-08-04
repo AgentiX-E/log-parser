@@ -198,7 +198,11 @@ describe('ConfigAutoTuner', () => {
   it('handles larger dataset with many iterations', async () => {
     const dataset = makeDataset(60);
     const tuner = new ConfigAutoTuner(dataset);
-    const result = await tuner.tune({ maxIterations: 15, exploreBooleans: false, exploreEngine: false });
+    const result = await tuner.tune({
+      maxIterations: 15,
+      exploreBooleans: false,
+      exploreEngine: false,
+    });
     expect(result.bestConfig).toBeDefined();
     expect(result.evaluations).toBeGreaterThan(5);
   });
@@ -217,7 +221,11 @@ describe('ConfigAutoTuner', () => {
   it('history contains all evaluated configs with scores', async () => {
     const dataset = makeDataset(20);
     const tuner = new ConfigAutoTuner(dataset);
-    const result = await tuner.tune({ maxIterations: 5, exploreBooleans: false, exploreEngine: false });
+    const result = await tuner.tune({
+      maxIterations: 5,
+      exploreBooleans: false,
+      exploreEngine: false,
+    });
     expect(result.history.length).toBe(result.evaluations);
     for (const step of result.history) {
       expect(step.score).toBeDefined();
@@ -231,7 +239,11 @@ describe('ConfigAutoTuner', () => {
   it('unsupervised mode assigns perfect scores (GA=1, PTA=1)', async () => {
     const logs = Array.from({ length: 15 }, (_, i) => `log entry number ${i}`);
     const tuner = new ConfigAutoTuner({ logs });
-    const result = await tuner.tune({ maxIterations: 3, exploreBooleans: false, exploreEngine: false });
+    const result = await tuner.tune({
+      maxIterations: 3,
+      exploreBooleans: false,
+      exploreEngine: false,
+    });
     // Without ground truth, evaluate returns {ga:1.0, pta:1.0}
     expect(result.bestGa).toBe(1.0);
     expect(result.bestPta).toBe(1.0);
@@ -250,7 +262,11 @@ describe('ConfigAutoTuner', () => {
   it('explores boolean flags when exploreBooleans is true', async () => {
     const dataset = makeDataset(20);
     const tuner = new ConfigAutoTuner(dataset);
-    const result = await tuner.tune({ maxIterations: 15, exploreBooleans: true, exploreEngine: false });
+    const result = await tuner.tune({
+      maxIterations: 15,
+      exploreBooleans: true,
+      exploreEngine: false,
+    });
     expect(result.history.length).toBeGreaterThan(0);
     expect(result.bestConfig).toBeDefined();
   });
@@ -267,7 +283,11 @@ describe('ConfigAutoTuner', () => {
     const dataset = makeDataset(10);
     const tuner = new ConfigAutoTuner(dataset);
     // High maxIter to ensure engine exploration happens
-    const result = await tuner.tune({ maxIterations: 50, exploreEngine: true, exploreBooleans: true });
+    const result = await tuner.tune({
+      maxIterations: 50,
+      exploreEngine: true,
+      exploreBooleans: true,
+    });
     expect(result.bestConfig).toBeDefined();
     expect(result.evaluations).toBeGreaterThan(10);
   });

@@ -35,7 +35,8 @@ export interface LogTemplate {
 }
 
 /** Source of a parsed log result. */
-export type ParseSource = 'drain-strict' | 'drain-loose' | 'drain-synlog' | 'cache-hit' | 'llm-extracted';
+export type ParseSource =
+  'drain-strict' | 'drain-loose' | 'drain-synlog' | 'cache-hit' | 'llm-extracted';
 
 /** Final parsed log result returned to consumers. */
 export interface LogParseResult {

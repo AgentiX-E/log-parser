@@ -118,9 +118,7 @@ export class LogParserPipeline {
 
   constructor(pipelineConfig: LogParserPipelineConfig = {}) {
     // Resolve LLM provider: explicit provider > modelRouter > local/remote pair > none
-    this.llmProvider = pipelineConfig.llmProvider
-      ?? pipelineConfig.localLlmProvider
-      ?? undefined;
+    this.llmProvider = pipelineConfig.llmProvider ?? pipelineConfig.localLlmProvider ?? undefined;
 
     this.embeddingProvider = pipelineConfig.embeddingProvider;
 

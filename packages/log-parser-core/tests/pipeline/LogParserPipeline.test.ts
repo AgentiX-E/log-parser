@@ -185,7 +185,9 @@ describe('LogParserPipeline', () => {
       const llm = createMockLLMProvider();
       const pipeline = new LogParserPipeline({
         llmProvider: llm,
-        modelRouter: { select: vi.fn().mockReturnValue(llm) } as any,
+        modelRouter: {
+          select: vi.fn().mockReturnValue(llm),
+        } as unknown as import('../../src/control/ModelRouter.js').ModelRouter,
       });
       expect(pipeline.stats.llmCalls).toBe(0);
     });
@@ -193,7 +195,9 @@ describe('LogParserPipeline', () => {
     // ── Classifier wiring ──
 
     it('wires classifier getter when injected', () => {
-      const mockClassifier = { classify: vi.fn().mockReturnValue('GENERIC') } as any;
+      const mockClassifier = {
+        classify: vi.fn().mockReturnValue('GENERIC'),
+      } as unknown as import('../../src/classifier/VariableTypeClassifier.js').VariableTypeClassifier;
       const pipeline = new LogParserPipeline({ classifier: mockClassifier });
       expect(pipeline.typeClassifier).toBe(mockClassifier);
     });
@@ -310,7 +314,6 @@ describe('LogParserPipeline', () => {
       expect(typeof changed).toBe('number');
     });
 
-
     // ── SynLog refinement edge cases (I4) ──
 
     it('refineTemplates handles multiple clusters', () => {
@@ -366,10 +369,9 @@ describe('LogParserPipeline', () => {
       const router = { select: vi.fn().mockReturnValue(llm) };
       const pipeline = new LogParserPipeline({
         llmProvider: llm,
-        modelRouter: router as any,
+        modelRouter: router as unknown as import('../../src/control/ModelRouter.js').ModelRouter,
       });
       expect(pipeline.llm).toBe(llm);
     });
-
   });
 });

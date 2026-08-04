@@ -349,7 +349,9 @@ describe('Log Parser Server', () => {
     const server = await createServer();
     await server.stop();
     // Second stop should not throw
-    await server.stop().catch(() => { /* fastify may throw on double-close */ });
+    await server.stop().catch(() => {
+      /* fastify may throw on double-close */
+    });
   });
 
   // ── POST /api/v1/parse/batch ──
@@ -380,10 +382,11 @@ describe('Log Parser Server', () => {
   // ── Error handling paths ──
 
   it('POST /api/v1/parse should handle parse errors gracefully', async () => {
-    const fastify = await initServer();
     // Force an error by injecting a pipeline that throws
     const customPipeline = {
-      parse: vi.fn(() => { throw new Error('forced error'); }),
+      parse: vi.fn(() => {
+        throw new Error('forced error');
+      }),
       stats: { templateCount: 0 },
       calibrateGranularity: vi.fn(),
       parseBatch: vi.fn(),
@@ -400,7 +403,9 @@ describe('Log Parser Server', () => {
 
   it('POST /api/v1/parse should handle batch parse errors', async () => {
     const customPipeline = {
-      parse: vi.fn(() => { throw new Error('forced error'); }),
+      parse: vi.fn(() => {
+        throw new Error('forced error');
+      }),
       stats: { templateCount: 0 },
       calibrateGranularity: vi.fn(),
       parseBatch: vi.fn(),
@@ -417,7 +422,9 @@ describe('Log Parser Server', () => {
 
   it('POST /api/v1/parse/batch should handle errors', async () => {
     const customPipeline = {
-      parseBatch: vi.fn(() => { throw new Error('batch error'); }),
+      parseBatch: vi.fn(() => {
+        throw new Error('batch error');
+      }),
       stats: { templateCount: 0 },
       parse: vi.fn(),
       calibrateGranularity: vi.fn(),
@@ -437,7 +444,11 @@ describe('Log Parser Server', () => {
   it('GET /api/v1/metrics returns prometheus-style metrics', async () => {
     const fastify = await initServer();
     // Parse some logs first to populate stats
-    await fastify.inject({ method: 'POST', url: '/api/v1/parse', payload: { log: 'test message' } });
+    await fastify.inject({
+      method: 'POST',
+      url: '/api/v1/parse',
+      payload: { log: 'test message' },
+    });
     const res = await fastify.inject({ method: 'GET', url: '/api/v1/metrics' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
@@ -497,7 +508,7 @@ describe('Log Parser Server', () => {
     process.exit = exitSpy;
 
     try {
-      const server = await createServer();
+      await createServer();
       // Manually trigger the shutdown handler that was registered via process.once
       // We access it by emitting SIGTERM on the process — the handler will call
       // registeredFastifyRefs cleanup and then process.exit (mocked as spy)

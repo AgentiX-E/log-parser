@@ -97,15 +97,17 @@ describe('WebLLMProvider', () => {
 
   it('parseResponse extracts content within TEMPLATE tags', () => {
     const provider = new WebLLMProvider({ model: 'test' });
-    const result = (provider as unknown as { parseResponse: (c: string) => { template: string } })
-      .parseResponse('<TEMPLATE>User <*> logged in from <IP></TEMPLATE>');
+    const result = (
+      provider as unknown as { parseResponse: (c: string) => { template: string } }
+    ).parseResponse('<TEMPLATE>User <*> logged in from <IP></TEMPLATE>');
     expect(result.template).toBe('User <*> logged in from <IP>');
   });
 
   it('parseResponse falls back to raw content without TEMPLATE tags', () => {
     const provider = new WebLLMProvider({ model: 'test' });
-    const result = (provider as unknown as { parseResponse: (c: string) => { template: string } })
-      .parseResponse('raw template output');
+    const result = (
+      provider as unknown as { parseResponse: (c: string) => { template: string } }
+    ).parseResponse('raw template output');
     expect(result.template).toBe('raw template output');
   });
 
