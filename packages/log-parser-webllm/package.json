@@ -1,6 +1,6 @@
 {
   "name": "@agentix-e/log-parser-webllm",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Browser-local LLM provider for the log-parser framework. Implements ILLMProvider using @mlc-ai/web-llm with WebGPU acceleration.",
   "type": "module",
   "module": "./dist/index.js",

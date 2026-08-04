@@ -1,6 +1,6 @@
 {
   "name": "@agentix-e/log-parser-core",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Core interfaces, pipeline engine, and built-in TF-IDF fallback for the log-parser framework. Platform-agnostic — runs on Node.js, Browser, Deno, and Bun.",
   "type": "module",
   "sideEffects": false,

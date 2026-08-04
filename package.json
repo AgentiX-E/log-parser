@@ -1,7 +1,7 @@
 {
   "name": "log-parser",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "A production-grade, composable intelligent log parsing engine for Node.js and Browser, built on TypeScript with dependency-injection-driven architecture.",
   "type": "module",
   "scripts": {

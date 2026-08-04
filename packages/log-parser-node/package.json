@@ -1,6 +1,6 @@
 {
   "name": "@agentix-e/log-parser-node",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Node.js I/O adapters for the log-parser framework — filesystem streaming, stdin, and cluster-based parallelism.",
   "type": "module",
   "main": "./dist/index.cjs",

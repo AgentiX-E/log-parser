@@ -1,6 +1,6 @@
 {
   "name": "@agentix-e/log-parser-server",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "REST and gRPC API server for the log-parser framework. Built on Fastify with OpenTelemetry instrumentation.",
   "type": "module",
   "module": "./dist/index.js",

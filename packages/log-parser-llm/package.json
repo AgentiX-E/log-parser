@@ -1,6 +1,6 @@
 {
   "name": "@agentix-e/log-parser-llm",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Convenient OpenAI-compatible LLM provider for the log-parser framework. Implements ILLMProvider using the Vercel AI SDK.",
   "type": "module",
   "module": "./dist/index.js",

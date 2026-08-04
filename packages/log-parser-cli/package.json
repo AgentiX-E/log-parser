@@ -1,6 +1,6 @@
 {
   "name": "@agentix-e/log-parser-cli",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Command-line interface for the log-parser framework. Parse logs from files, stdin, or remote sources.",
   "type": "module",
   "module": "./dist/index.js",

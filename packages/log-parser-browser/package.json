@@ -1,6 +1,6 @@
 {
   "name": "@agentix-e/log-parser-browser",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Browser I/O adapters for the log-parser framework — FileReader, Drag & Drop, IndexedDB persistence, Web Workers, and ReadableStream.",
   "type": "module",
   "module": "./dist/index.js",
