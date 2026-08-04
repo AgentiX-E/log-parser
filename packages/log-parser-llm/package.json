@@ -36,7 +36,6 @@
     "dotenv": "^17.4.2"
   },
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "access": "public"
   }
 }
