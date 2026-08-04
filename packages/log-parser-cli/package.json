@@ -32,7 +32,6 @@
     "commander": "^13.0.0"
   },
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "access": "public"
   }
 }
