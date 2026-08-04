@@ -1,7 +1,7 @@
 {
   "name": "@agentix-e/log-parser-core",
   "version": "1.0.0",
-  "description": "Core interfaces, pipeline engine, and built-in TF-IDF fallback for the log-parser framework. Platform-agnostic — runs on Node.js, Browser, Deno, and Bun.",
+  "description": "Core interfaces, pipeline engine, and built-in TF-IDF fallback for the log-parser framework. Platform-agnostic \u2014 runs on Node.js, Browser, Deno, and Bun.",
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.cjs",
@@ -15,8 +15,9 @@
     }
   },
   "files": [
-    "dist",
-    "src"
+    "dist/",
+    "README.md",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --dts --external nodejieba --external franc-min --external natural --external kuromoji",

@@ -12,8 +12,9 @@
     }
   },
   "files": [
-    "dist",
-    "src"
+    "dist/",
+    "README.md",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsup src/index.ts --external all --format esm --dts",

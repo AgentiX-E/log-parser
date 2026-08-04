@@ -1,7 +1,7 @@
 {
   "name": "@agentix-e/log-parser-browser",
   "version": "1.0.0",
-  "description": "Browser I/O adapters for the log-parser framework — FileReader, Drag & Drop, IndexedDB persistence, Web Workers, and ReadableStream.",
+  "description": "Browser I/O adapters for the log-parser framework \u2014 FileReader, Drag & Drop, IndexedDB persistence, Web Workers, and ReadableStream.",
   "type": "module",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -12,8 +12,9 @@
     }
   },
   "files": [
-    "dist",
-    "src"
+    "dist/",
+    "README.md",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsup src/index.ts --external all --format esm --dts",
