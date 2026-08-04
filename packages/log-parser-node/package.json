@@ -30,7 +30,6 @@
     "@agentix-e/log-parser-core": "workspace:*"
   },
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "access": "public"
   }
 }
